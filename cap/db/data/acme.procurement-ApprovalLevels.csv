@@ -1,0 +1,4 @@
+code;name;descr;requiredRole
+1;L1 - Team Lead;Approves everyday demand up to the first threshold;ApproverL1
+2;L2 - Department Head;Approves mid-size demand and all medium risk suppliers;ApproverL2
+3;L3 - CFO;Approves capital expenditure and all high risk suppliers;ApproverL3

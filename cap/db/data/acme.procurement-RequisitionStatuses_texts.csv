@@ -1,0 +1,6 @@
+code;locale;name;descr
+DR;de;Entwurf;Vom Anforderer bearbeitbar und für Genehmiger noch nicht sichtbar
+IA;de;In Genehmigung;Eingereicht und wartet auf eine oder mehrere Genehmigungsstufen
+AP;de;Genehmigt;Vollständig genehmigt und bereit zur Umsetzung in eine Bestellung
+RE;de;Abgelehnt;Von einem Genehmiger abgelehnt - kann überarbeitet werden
+CL;de;Abgeschlossen;In eine Bestellung umgesetzt oder storniert

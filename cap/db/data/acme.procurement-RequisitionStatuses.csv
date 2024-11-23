@@ -1,0 +1,6 @@
+code;name;descr;criticality
+DR;Draft;Editable by the requester and not yet visible to approvers;0
+IA;In Approval;Submitted and waiting for one or more approval levels;2
+AP;Approved;Fully approved and ready for conversion into a purchase order;3
+RE;Rejected;Rejected by an approver - can be copied into a new requisition;1
+CL;Closed;Converted into a purchase order or cancelled;0
