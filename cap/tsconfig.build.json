@@ -1,0 +1,15 @@
+{
+  // Production build: compiles the service sources to JavaScript next to the
+  // CDS model that `cds build --production` puts into gen/srv.
+  // Tests, fixtures and the generated model types are not part of it.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "srv",
+    "outDir": "gen/srv/srv",
+    "sourceMap": false,
+    "declaration": false
+  },
+  "include": ["srv/**/*.ts"],
+  "exclude": ["node_modules", "gen", "test"]
+}

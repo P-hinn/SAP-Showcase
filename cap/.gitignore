@@ -1,0 +1,9 @@
+node_modules/
+gen/
+coverage/
+# Generated from the CDS model by @cap-js/cds-typer (npm run types).
+# Regenerated on demand; never edited by hand, so not worth versioning.
+@cds-models/
+*.sqlite
+*.db
+.cdsrc-private.json

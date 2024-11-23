@@ -1,0 +1,150 @@
+{
+  "name": "acme-procurement-cap",
+  "version": "1.0.0",
+  "description": "Side-by-side extension for purchase requisition approval and supplier risk scoring (SAP CAP / Node.js)",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@cap-js/hana": "^3",
+    "@cap-js/sqlite": "^3",
+    "@sap-cloud-sdk/connectivity": "^4.9.1",
+    "@sap-cloud-sdk/http-client": "^4.9.1",
+    "@sap-cloud-sdk/resilience": "^4.9.1",
+    "@sap/cds": "^10",
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "@cap-js/cds-test": "^1",
+    "@cap-js/cds-typer": "^0.41.1",
+    "@cap-js/cds-types": "^0.19.0",
+    "@sap/cds-dk": "^10",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.20.3",
+    "eslint": "^10",
+    "jest": "^30",
+    "jiti": "^2.7.0",
+    "puppeteer-core": "^25.11.0",
+    "ts-jest": "^29.4.12",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0"
+  },
+  "scripts": {
+    "start": "cds-tsx serve all --with-mocks --in-memory?",
+    "watch": "cds-tsx watch",
+    "types": "cds-typer \"*\" --outputDirectory @cds-models",
+    "build": "cds build --production && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --runInBand --coverage",
+    "lint": "eslint .",
+    "compile:check": "cds compile srv --to sql > /dev/null && cds compile srv --to edmx -s all > /dev/null",
+    "start:sandbox": "cds-tsx serve all --with-mocks --in-memory? --profile development,sandbox",
+    "check:i18n": "node ../scripts/check-i18n.mjs",
+    "screenshots": "node ../scripts/screenshots.mjs"
+  },
+  "cds": {
+    "requires": {
+      "db": {
+        "[development]": {
+          "kind": "sqlite",
+          "credentials": {
+            "url": ":memory:"
+          }
+        },
+        "[test]": {
+          "kind": "sqlite",
+          "credentials": {
+            "url": ":memory:"
+          }
+        },
+        "[production]": {
+          "kind": "hana",
+          "impl": "@cap-js/hana"
+        }
+      },
+      "auth": {
+        "[development]": {
+          "kind": "mocked",
+          "users": {
+            "rita": {
+              "roles": [
+                "Requester"
+              ],
+              "attr": {}
+            },
+            "tom": {
+              "roles": [
+                "Requester",
+                "ApproverL1"
+              ],
+              "attr": {}
+            },
+            "dana": {
+              "roles": [
+                "Requester",
+                "ApproverL1",
+                "ApproverL2"
+              ],
+              "attr": {}
+            },
+            "carl": {
+              "roles": [
+                "ApproverL1",
+                "ApproverL2",
+                "ApproverL3"
+              ],
+              "attr": {}
+            },
+            "mona": {
+              "roles": [
+                "ProcurementAdmin",
+                "Requester"
+              ],
+              "attr": {}
+            }
+          }
+        },
+        "[production]": {
+          "kind": "xsuaa"
+        }
+      },
+      "API_BUSINESS_PARTNER": {
+        "kind": "odata-v2",
+        "model": "srv/external/API_BUSINESS_PARTNER",
+        "[sandbox]": {
+          "credentials": {
+            "url": "https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_BUSINESS_PARTNER"
+          }
+        },
+        "[production]": {
+          "credentials": {
+            "destination": "S4HANA",
+            "path": "/sap/opu/odata/sap/API_BUSINESS_PARTNER"
+          }
+        }
+      },
+      "API_PURCHASEORDER_PROCESS_SRV": {
+        "kind": "odata-v2",
+        "model": "srv/external/API_PURCHASEORDER_PROCESS_SRV",
+        "[production]": {
+          "credentials": {
+            "destination": "S4HANA",
+            "path": "/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV"
+          }
+        }
+      }
+    },
+    "features": {
+      "assert_integrity": "db"
+    }
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
+  }
+}
