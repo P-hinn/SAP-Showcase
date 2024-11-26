@@ -1,0 +1,48 @@
+{
+  // Type checking configuration. Nothing is emitted from here - the tests run
+  // through ts-jest and `cds watch` runs TypeScript directly via tsx.
+  // The production build uses tsconfig.build.json.
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2023"],
+    // node16 rather than the deprecated node10 resolution: it models the
+    // CommonJS/ESM split the way Node actually does, and it is the only
+    // resolution mode TypeScript 7 will still support.
+    "module": "node16",
+    "moduleResolution": "node16",
+    // @cap-js/cds-types provides the types for `cds`, the CQL globals
+    // (SELECT, INSERT, UPDATE, DELETE) and the Request object.
+    "types": ["@cap-js/cds-types", "node", "jest"],
+
+    // Strict, and then some. The two extra flags below are the ones that
+    // actually catch bugs in this kind of code: an optional CDS field read
+    // without a guard, and an array index assumed to exist.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": false,
+
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    // Required by ts-jest under node16 module resolution, and the right
+    // setting anyway: it forbids constructs that cannot be compiled one file
+    // at a time, which is how every modern transpiler works.
+    "isolatedModules": true,
+    "sourceMap": true,
+    "noEmit": true,
+
+    // Types generated from the CDS model by @cap-js/cds-typer. They are
+    // imported with `import type`, so they are erased at compile time and the
+    // production bundle never depends on them.
+    "paths": {
+      "#cds-models/*": ["./@cds-models/*/index.js"],
+      "#cds-models": ["./@cds-models/index.js"]
+    }
+  },
+  "include": ["srv/**/*.ts", "test/**/*.ts", "@cds-models/**/*.d.ts"],
+  "exclude": ["node_modules", "gen"]
+}
