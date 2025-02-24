@@ -1,0 +1,4 @@
+code;locale;name;descr
+A;de;Geringes Risiko;Risikowert unter 25 - Standard-Genehmigungsweg
+B;de;Mittleres Risiko;Risikowert 25 bis 54 - eine zusätzliche Genehmigungsstufe
+C;de;Hohes Risiko;Risikowert ab 55 - CFO-Beteiligung ab 25.000 EUR
