@@ -1,0 +1,4 @@
+code;name;descr;criticality
+A;Low risk;Risk score below 25 - standard approval path;3
+B;Medium risk;Risk score 25 to 54 - one additional approval level;2
+C;High risk;Risk score 55 or higher - CFO involvement from 25k EUR;1
