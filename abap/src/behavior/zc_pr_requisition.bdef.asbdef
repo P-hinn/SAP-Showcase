@@ -1,0 +1,47 @@
+/*
+ * Projection behaviour definition.
+ *
+ * Only what the Fiori app is allowed to touch is exposed here. Everything
+ * else stays inside the base BO - which is what makes it safe to build a
+ * second, differently scoped UI on the same business object later.
+ */
+projection;
+strict ( 2 );
+use draft;
+
+define behavior for ZC_PR_Requisition alias Requisition
+{
+  use create;
+  use update;
+  use delete;
+
+  use action submit;
+  use action approve;
+  use action rejectRequisition;
+  use action withdraw;
+  use action close;
+  use action reopen;
+  use action copyRequisition;
+
+  use action Edit;
+  use action Activate;
+  use action Discard;
+  use action Resume;
+  use action Prepare;
+
+  use association _Item { create; with draft; }
+  use association _Approval { with draft; }
+}
+
+define behavior for ZC_PR_ReqItem alias Item
+{
+  use update;
+  use delete;
+
+  use association _Requisition { with draft; }
+}
+
+define behavior for ZC_PR_Approval alias ApprovalStep
+{
+  use association _Requisition { with draft; }
+}
