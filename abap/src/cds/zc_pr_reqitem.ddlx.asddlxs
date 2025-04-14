@@ -1,0 +1,49 @@
+@Metadata.layer: #CORE
+annotate view ZC_PR_ReqItem with
+{
+  @UI.facet: [
+    { id: 'ItemDetails', purpose: #STANDARD, type: #FIELDGROUP_REFERENCE,
+      label: 'Item Details', position: 10, targetQualifier: 'ItemGroup' }
+  ]
+
+  @UI.hidden: true
+  ItemUUID;
+  @UI.hidden: true
+  RequisitionUUID;
+
+  @UI.lineItem: [ { position: 10, label: 'Item' } ]
+  @UI.fieldGroup: [ { qualifier: 'ItemGroup', position: 10 } ]
+  ItemNumber;
+
+  @UI.lineItem: [ { position: 20 } ]
+  @UI.fieldGroup: [ { qualifier: 'ItemGroup', position: 20 } ]
+  Product;
+
+  @UI.lineItem: [ { position: 30, importance: #HIGH } ]
+  @UI.fieldGroup: [ { qualifier: 'ItemGroup', position: 30 } ]
+  Description;
+
+  @UI.lineItem: [ { position: 40 } ]
+  @UI.fieldGroup: [ { qualifier: 'ItemGroup', position: 40 } ]
+  Quantity;
+
+  @UI.lineItem: [ { position: 50 } ]
+  @UI.fieldGroup: [ { qualifier: 'ItemGroup', position: 50 } ]
+  UnitPrice;
+
+  @UI.lineItem: [ { position: 60, importance: #HIGH } ]
+  @UI.fieldGroup: [ { qualifier: 'ItemGroup', position: 60 } ]
+  NetAmount;
+
+  @UI.lineItem: [ { position: 70, label: 'Supplier' } ]
+  @UI.fieldGroup: [ { qualifier: 'ItemGroup', position: 70 } ]
+  Supplier;
+
+  @UI.lineItem: [ { position: 80 } ]
+  @UI.fieldGroup: [ { qualifier: 'ItemGroup', position: 80 } ]
+  Plant;
+
+  @UI.lineItem: [ { position: 90 } ]
+  @UI.fieldGroup: [ { qualifier: 'ItemGroup', position: 90 } ]
+  DeliveryDate;
+}

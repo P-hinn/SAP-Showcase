@@ -1,0 +1,119 @@
+@Metadata.layer: #CORE
+
+// Fiori Elements annotations for the purchase requisition app.
+//
+// A metadata extension rather than annotations in the view itself: the
+// consumption view describes the data, the extension describes the screen.
+// Keeping them apart means a second app can annotate the same view
+// differently without touching it - and it keeps the view readable.
+//
+// The CAP counterpart is app/purchase-requisitions/annotations.cds. Same
+// layout, same criticality logic, different syntax.
+@UI: {
+  headerInfo: {
+    typeName: 'Purchase Requisition',
+    typeNamePlural: 'Purchase Requisitions',
+    title: { type: #STANDARD, value: 'Title' },
+    description: { value: 'RequisitionNumber' }
+  }
+}
+annotate view ZC_PR_Requisition with
+{
+  @UI.facet: [
+    { id: 'General', purpose: #STANDARD, type: #COLLECTION,
+      label: 'General Information', position: 10 },
+    { id: 'Header', parentId: 'General', type: #FIELDGROUP_REFERENCE,
+      targetQualifier: 'HeaderGroup', label: 'Header', position: 10 },
+    { id: 'Approval', parentId: 'General', type: #FIELDGROUP_REFERENCE,
+      targetQualifier: 'ApprovalGroup', label: 'Approval', position: 20 },
+    { id: 'Items', purpose: #STANDARD, type: #LINEITEM_REFERENCE,
+      label: 'Items', position: 20, targetElement: '_Item' },
+    { id: 'Chain', purpose: #STANDARD, type: #LINEITEM_REFERENCE,
+      label: 'Approval Chain', position: 30, targetElement: '_Approval' },
+    { id: 'TotalValue', purpose: #HEADER, type: #DATAPOINT_REFERENCE,
+      position: 10, targetQualifier: 'TotalValue' },
+    { id: 'StatusPoint', purpose: #HEADER, type: #DATAPOINT_REFERENCE,
+      position: 20, targetQualifier: 'StatusPoint' }
+  ]
+
+  @UI.hidden: true
+  RequisitionUUID;
+
+  @UI: {
+    lineItem: [ { position: 10, label: 'Requisition', importance: #HIGH } ],
+    identification: [ { position: 10 } ],
+    fieldGroup: [ { qualifier: 'HeaderGroup', position: 10 } ],
+    selectionField: [ { position: 40 } ]
+  }
+  RequisitionNumber;
+
+  @UI: {
+    lineItem: [ { position: 20, importance: #HIGH } ],
+    fieldGroup: [ { qualifier: 'HeaderGroup', position: 20 } ]
+  }
+  Title;
+
+  @UI.multiLineText: true
+  @UI.fieldGroup: [ { qualifier: 'HeaderGroup', position: 30 } ]
+  Description;
+
+  @UI: {
+    lineItem: [ { position: 30 } ],
+    fieldGroup: [ { qualifier: 'HeaderGroup', position: 40 } ],
+    selectionField: [ { position: 30 } ]
+  }
+  Requester;
+
+  @UI: {
+    lineItem: [ { position: 40, label: 'Cost Center' } ],
+    fieldGroup: [ { qualifier: 'HeaderGroup', position: 50 } ],
+    selectionField: [ { position: 20 } ]
+  }
+  CostCenter;
+
+  @UI: {
+    lineItem: [ { position: 50, importance: #HIGH } ],
+    dataPoint: { qualifier: 'TotalValue', title: 'Total Net Value' },
+    fieldGroup: [ { qualifier: 'HeaderGroup', position: 60 } ]
+  }
+  TotalValue;
+
+  @UI: {
+    lineItem: [ { position: 60, criticality: 'StatusCriticality', label: 'Status' } ],
+    dataPoint: { qualifier: 'StatusPoint', title: 'Status',
+                 criticality: 'StatusCriticality' },
+    selectionField: [ { position: 10 } ]
+  }
+  Status;
+
+  @UI: {
+    lineItem: [ { position: 70, criticality: 'SupplierRiskCriticality',
+                  label: 'Supplier Risk' } ],
+    selectionField: [ { position: 50 } ]
+  }
+  SupplierRiskClass;
+
+  @UI.lineItem: [ { position: 80, label: 'Required Level' } ]
+  @UI.fieldGroup: [ { qualifier: 'ApprovalGroup', position: 10 } ]
+  RequiredApprovalLevel;
+
+  @UI.fieldGroup: [ { qualifier: 'ApprovalGroup', position: 20,
+                      label: 'Approved Up To Level' } ]
+  CurrentApprovalLevel;
+
+  @UI.fieldGroup: [ { qualifier: 'ApprovalGroup', position: 30 } ]
+  SubmittedAt;
+
+  @UI.fieldGroup: [ { qualifier: 'ApprovalGroup', position: 40 } ]
+  CompletedAt;
+
+  @UI.multiLineText: true
+  @UI.fieldGroup: [ { qualifier: 'ApprovalGroup', position: 50 } ]
+  RejectionReason;
+
+  @UI.hidden: true
+  StatusCriticality;
+
+  @UI.hidden: true
+  SupplierRiskCriticality;
+}
