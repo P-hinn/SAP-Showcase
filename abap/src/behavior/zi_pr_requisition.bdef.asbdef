@@ -1,0 +1,210 @@
+/*
+ * Behaviour definition of the purchase requisition business object.
+ *
+ * Managed, draft enabled, with ETag based optimistic concurrency.
+ *
+ * Read this next to srv/procurement-service.js on the CAP side: the two
+ * implement the same rules, and the message numbers (ZPR_MSG 001..012) are
+ * identical in both stacks, so an incident ticket quotes the same code no
+ * matter which implementation raised it.
+ *
+ * The draft tables ZPR_REQ_HDR_D, ZPR_REQ_ITM_D and ZPR_APPROVAL_D are
+ * generated from the persistent tables by the ADT quick fix
+ * "Create draft table" - they are not hand written.
+ */
+managed implementation in class zbp_i_pr_requisition unique;
+strict ( 2 );
+with draft;
+
+define behavior for ZI_PR_Requisition alias Requisition
+persistent table zpr_req_hdr
+draft table zpr_req_hdr_d
+lock master
+total etag LastChangedAt
+authorization master ( instance )
+etag master LocalLastChangedAt
+{
+  // Everything the approval logic owns is read only for the client.
+  field ( readonly )
+    RequisitionUUID,
+    RequisitionNumber,
+    TotalValue,
+    Status,
+    SupplierRiskClass,
+    RequiredApprovalLevel,
+    CurrentApprovalLevel,
+    SubmittedAt,
+    CompletedAt,
+    RejectionReason;
+
+  field ( numbering : managed ) RequisitionUUID;
+  field ( mandatory ) Title, Requester, CostCenter, Currency;
+
+  create;
+  update ( features : instance );
+  delete ( features : instance );
+
+  // A new requisition starts in draft status with an empty approval chain.
+  determination setInitialValues on modify { create; }
+
+  // Validations run on save, so the user can leave a draft half finished.
+  validation validateHeader on save { create; update; field Title, CostCenter, Requester; }
+
+  // Actions. `features : instance` means the buttons are greyed out in the UI
+  // for a requisition whose status does not allow them - the same rule that
+  // the action itself enforces, evaluated once for the whole list.
+  action ( features : instance ) submit result [1] $self;
+  action ( features : instance ) approve parameter ZD_PR_ApprovalComment result [1] $self;
+  action ( features : instance ) rejectRequisition parameter ZD_PR_RejectionReason result [1] $self;
+  action ( features : instance ) withdraw result [1] $self;
+  action ( features : instance ) close result [1] $self;
+  action ( features : instance ) reopen result [1] $self;
+
+  // Copies a rejected requisition into a fresh draft instead of reworking it,
+  // which keeps the audit trail of the rejected document intact.
+  factory action ( features : instance ) copyRequisition [1];
+
+  // Runs the save validations while the draft is still open, so the user sees
+  // the problems before pressing Save.
+  draft determine action Prepare
+  {
+    validation validateHeader;
+    validation Item ~ validateItem;
+  }
+
+  draft action Edit;
+  draft action Activate optimized;
+  draft action Discard;
+  draft action Resume;
+
+  mapping for zpr_req_hdr
+  {
+    RequisitionUUID       = requisition_uuid;
+    RequisitionNumber     = requisition_number;
+    Title                 = title;
+    Description           = description;
+    Requester             = requester;
+    CostCenter            = cost_center;
+    TotalValue            = total_value;
+    Currency              = currency;
+    Status                = status;
+    SupplierRiskClass     = supplier_risk_class;
+    RequiredApprovalLevel = required_approval_level;
+    CurrentApprovalLevel  = current_approval_level;
+    SubmittedAt           = submitted_at;
+    CompletedAt           = completed_at;
+    RejectionReason       = rejection_reason;
+    CreatedBy             = created_by;
+    CreatedAt             = created_at;
+    LastChangedBy         = last_changed_by;
+    LastChangedAt         = last_changed_at;
+    LocalLastChangedAt    = local_last_changed_at;
+  }
+
+  association _Item { create; with draft; }
+  association _Approval { with draft; }
+}
+
+define behavior for ZI_PR_ReqItem alias Item
+persistent table zpr_req_itm
+draft table zpr_req_itm_d
+lock dependent by _Requisition
+authorization dependent by _Requisition
+etag master LocalLastChangedAt
+{
+  field ( readonly ) ItemUUID, RequisitionUUID, ItemNumber, NetAmount;
+  field ( numbering : managed ) ItemUUID;
+  field ( mandatory ) Description, Quantity, UnitPrice, Supplier, DeliveryDate;
+
+  update;
+  delete;
+
+  // Defaults description, unit and price from the product master and keeps the
+  // net amount in sync. CAP counterpart: deriveItemFields().
+  determination deriveItemValues on modify
+    { create; field Product, Quantity, UnitPrice; }
+
+  // The header totals live on the header, but only an item change can make
+  // them wrong - so the determination that maintains them sits here, where the
+  // trigger is, and updates the parent. A determination on the header would
+  // never fire when only an item changed.
+  determination recalculateHeader on modify
+    { create; update; delete; field Quantity, UnitPrice, Supplier; }
+
+  validation validateItem on save
+    { create; update; field Quantity, UnitPrice, DeliveryDate, Supplier; }
+
+  side effects
+  {
+    field Product   affects field Description, QuantityUnit, UnitPrice, NetAmount;
+    field Quantity  affects field NetAmount,
+                                  _Requisition.TotalValue,
+                                  _Requisition.RequiredApprovalLevel;
+    field UnitPrice affects field NetAmount,
+                                  _Requisition.TotalValue,
+                                  _Requisition.RequiredApprovalLevel;
+    field Supplier  affects field _Requisition.SupplierRiskClass,
+                                  _Requisition.RequiredApprovalLevel;
+  }
+
+  mapping for zpr_req_itm
+  {
+    ItemUUID           = item_uuid;
+    RequisitionUUID    = requisition_uuid;
+    ItemNumber         = item_number;
+    Product            = product;
+    Description        = description;
+    Quantity           = quantity;
+    QuantityUnit       = quantity_unit;
+    UnitPrice          = unit_price;
+    NetAmount          = net_amount;
+    Currency           = currency;
+    Supplier           = supplier;
+    Plant              = plant;
+    DeliveryDate       = delivery_date;
+    CreatedBy          = created_by;
+    CreatedAt          = created_at;
+    LastChangedBy      = last_changed_by;
+    LastChangedAt      = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+
+  association _Requisition { with draft; }
+}
+
+define behavior for ZI_PR_Approval alias ApprovalStep
+persistent table zpr_approval
+draft table zpr_approval_d
+lock dependent by _Requisition
+authorization dependent by _Requisition
+etag master LocalLastChangedAt
+{
+  // The approval chain is written by the submit, approve and reject actions
+  // only. No create, update or delete is exposed - not even internally, so
+  // that there is exactly one code path that can change a decision.
+  field ( readonly ) StepUUID, RequisitionUUID, ApprovalLevel, Decision,
+                     DecidedBy, DecidedAt, Comments;
+  field ( numbering : managed ) StepUUID;
+
+  internal create;
+  internal update;
+  internal delete;
+
+  mapping for zpr_approval
+  {
+    StepUUID           = step_uuid;
+    RequisitionUUID    = requisition_uuid;
+    ApprovalLevel      = approval_level;
+    Decision           = decision;
+    DecidedBy          = decided_by;
+    DecidedAt          = decided_at;
+    Comments           = comments;
+    CreatedBy          = created_by;
+    CreatedAt          = created_at;
+    LastChangedBy      = last_changed_by;
+    LastChangedAt      = last_changed_at;
+    LocalLastChangedAt = local_last_changed_at;
+  }
+
+  association _Requisition { with draft; }
+}

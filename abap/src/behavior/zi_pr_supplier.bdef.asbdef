@@ -1,0 +1,51 @@
+/*
+ * Supplier risk business object.
+ *
+ * Managed, but without draft: this is a maintenance view for a handful of
+ * attributes, not a document. The interesting part is the action, which
+ * re-runs the scoring and writes the result back.
+ */
+managed implementation in class zbp_i_pr_supplier unique;
+strict ( 2 );
+
+define behavior for ZI_PR_Supplier alias Supplier
+persistent table zpr_sup_risk
+lock master
+authorization master ( global )
+etag master LocalLastChangedAt
+{
+  field ( readonly ) Supplier, SupplierName, Country, PostingIsBlocked,
+                     RiskScore, RiskClass, RiskCalculatedAt;
+
+  create;
+  update;
+  delete;
+
+  // Recalculating on every change keeps the score from drifting away from the
+  // attributes it is derived from.
+  determination recalculateRiskOnModify on modify
+    { create; field FinancialRating, OnTimeDeliveryRate, QualityIncidents12M, IsoCertified; }
+
+  action recalculateRisk result [1] $self;
+
+  // Entry point for the nightly job. Static, because it does not act on one
+  // instance but on everything that is due.
+  static action recalculateAllRisks result [1] ZD_PR_RecalculationResult;
+
+  mapping for zpr_sup_risk
+  {
+    Supplier            = supplier;
+    FinancialRating     = financial_rating;
+    OnTimeDeliveryRate  = on_time_delivery_rate;
+    QualityIncidents12M = quality_incidents_12m;
+    IsoCertified        = iso_certified;
+    RiskScore           = risk_score;
+    RiskClass           = risk_class;
+    RiskCalculatedAt    = risk_calculated_at;
+    CreatedBy           = created_by;
+    CreatedAt           = created_at;
+    LastChangedBy       = last_changed_by;
+    LastChangedAt       = last_changed_at;
+    LocalLastChangedAt  = local_last_changed_at;
+  }
+}

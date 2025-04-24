@@ -1,0 +1,5 @@
+@EndUserText.label: 'Supplier Risk'
+define service ZUI_PR_Supplier {
+  expose ZC_PR_Supplier  as Suppliers;
+  expose I_CountryStdVH  as Countries;
+}
