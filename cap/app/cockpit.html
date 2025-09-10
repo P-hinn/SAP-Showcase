@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Einkaufs-Cockpit</title>
+  <link rel="icon" href="shared/logo.svg">
+  <link rel="stylesheet" href="shared/shell.css">
+  <script src="shared/preboot.js"></script>
+  <!-- Start page of the showcase. Replaces the generic CAP index page;
+       the service endpoints it listed are linked from here. -->
+  <script
+    id="sap-ui-bootstrap"
+    src="https://ui5.sap.com/resources/sap-ui-core.js"
+    data-sap-ui-async="true"
+    data-sap-ui-compat-version="edge"
+    data-sap-ui-frame-options="trusted"
+    data-sap-ui-libs="sap.m,sap.f"
+    data-sap-ui-on-init="module:acme/shared/shell"
+    data-sap-ui-resource-roots='{"acme.shared": "./shared/"}'>
+  </script>
+</head>
+<body class="sapUiBody">
+  <div id="acme-shell" data-app="cockpit"></div>
+  <div id="acme-content" class="acme-content"></div>
+</body>
+</html>
