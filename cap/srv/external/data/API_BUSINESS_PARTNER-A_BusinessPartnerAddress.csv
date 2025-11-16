@@ -1,0 +1,10 @@
+BusinessPartner;AddressID;Country;CityName;PostalCode;StreetName
+4711001;1001;DE;Hamburg;20457;Am Sandtorkai
+4711002;1002;AT;Innsbruck;6020;Grabenweg
+4711003;1003;CH;Biel;2502;Rue de la Gare
+4711004;1004;PL;Wroclaw;50-001;ul. Swidnicka
+4711005;1005;TR;Bursa;16140;Organize Sanayi Bolgesi
+4711006;1006;CN;Shenzhen;518057;Keji Road
+4711007;1007;IN;Pune;411018;MIDC Pimpri
+4711008;1008;DE;Chemnitz;09111;Strasse der Nationen
+4711009;1009;SE;Jonkoping;55318;Industrigatan

@@ -1,0 +1,10 @@
+Supplier;SupplierName;SupplierFullName;PurchasingIsBlocked;PostingIsBlocked;CreationDate
+4711001;Nordwind Stahl GmbH;Nordwind Stahl GmbH;false;false;2014-03-11
+4711002;Alpenmetall AG;Alpenmetall AG;false;false;2015-06-02
+4711003;Helvetica Precision SA;Helvetica Precision SA;false;false;2016-01-20
+4711004;Wisla Components Sp. z o.o.;Wisla Components Sp. z o.o.;true;false;2017-09-05
+4711005;Anadolu Endustri A.S.;Anadolu Endustri Anonim Sirketi;false;false;2018-04-17
+4711006;Shenzhen Ruiyang Electronics Co.;Shenzhen Ruiyang Electronics Co., Ltd.;false;false;2021-11-30
+4711007;Bharat Polymers Pvt. Ltd.;Bharat Polymers Private Limited;false;false;2019-02-14
+4711008;Kontinental Zulieferer GmbH;Kontinental Zulieferer GmbH;true;true;2012-07-01
+4711009;Nordic Castings AB;Nordic Castings Aktiebolag;false;false;2026-09-10
