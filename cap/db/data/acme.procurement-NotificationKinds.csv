@@ -1,0 +1,6 @@
+code;name;descr;criticality
+NEED;Approval needed;A requisition is waiting for your approval level;2
+APPR;Approved;Your requisition is fully approved;3
+REJE;Rejected;Your requisition was rejected;1
+PATH;Approval path adjusted;A supplier risk change added approval levels to your requisition;2
+ORDR;Purchase order created;Your requisition was converted into a purchase order in S/4HANA;3
