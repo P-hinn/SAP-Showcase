@@ -1,0 +1,5 @@
+position;maxValue;levelA;levelB;levelC;createdAt;createdBy;modifiedAt;modifiedBy
+10;5000.00;1;1;2;2026-01-15T09:00:00Z;mona;2026-01-15T09:00:00Z;mona
+20;25000.00;1;2;2;2026-01-15T09:00:00Z;mona;2026-01-15T09:00:00Z;mona
+30;100000.00;2;2;3;2026-01-15T09:00:00Z;mona;2026-01-15T09:00:00Z;mona
+40;;3;3;3;2026-01-15T09:00:00Z;mona;2026-01-15T09:00:00Z;mona
