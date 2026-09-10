@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "cap", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "cap", "start"], "port": 4004 }
+  ]
+}
