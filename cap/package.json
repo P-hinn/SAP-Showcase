@@ -1,0 +1,102 @@
+{
+  "name": "acme-procurement-cap",
+  "version": "1.0.0",
+  "description": "Side-by-side extension for purchase requisition approval and supplier risk scoring (SAP CAP / Node.js)",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@cap-js/sqlite": "^3",
+    "@sap/cds": "^10",
+    "express": "^4",
+    "@cap-js/hana": "^3"
+  },
+  "devDependencies": {
+    "@cap-js/cds-test": "^1",
+    "@sap/cds-dk": "^10",
+    "eslint": "^10",
+    "jest": "^30"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "watch": "cds watch",
+    "build": "cds build --production",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --runInBand --coverage",
+    "lint": "eslint .",
+    "compile:check": "cds compile srv --to sql > /dev/null && cds compile srv --to edmx -s all > /dev/null"
+  },
+  "cds": {
+    "requires": {
+      "db": {
+        "[development]": {
+          "kind": "sqlite",
+          "credentials": {
+            "url": ":memory:"
+          }
+        },
+        "[test]": {
+          "kind": "sqlite",
+          "credentials": {
+            "url": ":memory:"
+          }
+        },
+        "[production]": {
+          "kind": "hana",
+          "impl": "@cap-js/hana"
+        }
+      },
+      "auth": {
+        "[development]": {
+          "kind": "mocked",
+          "users": {
+            "rita": {
+              "roles": [
+                "Requester"
+              ],
+              "attr": {}
+            },
+            "tom": {
+              "roles": [
+                "Requester",
+                "ApproverL1"
+              ],
+              "attr": {}
+            },
+            "dana": {
+              "roles": [
+                "Requester",
+                "ApproverL1",
+                "ApproverL2"
+              ],
+              "attr": {}
+            },
+            "carl": {
+              "roles": [
+                "ApproverL1",
+                "ApproverL2",
+                "ApproverL3"
+              ],
+              "attr": {}
+            },
+            "mona": {
+              "roles": [
+                "ProcurementAdmin",
+                "Requester"
+              ],
+              "attr": {}
+            }
+          }
+        },
+        "[production]": {
+          "kind": "xsuaa"
+        }
+      }
+    },
+    "features": {
+      "assert_integrity": "db"
+    }
+  }
+}

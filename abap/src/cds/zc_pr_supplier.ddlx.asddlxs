@@ -1,0 +1,81 @@
+@Metadata.layer: #CORE
+@UI: {
+  headerInfo: {
+    typeName: 'Supplier',
+    typeNamePlural: 'Suppliers',
+    title: { value: 'SupplierName' },
+    description: { value: 'Supplier' }
+  }
+}
+annotate view ZC_PR_Supplier with
+{
+  @UI.facet: [
+    { id: 'Master', purpose: #STANDARD, type: #FIELDGROUP_REFERENCE,
+      label: 'Master Data', position: 10, targetQualifier: 'MasterGroup' },
+    { id: 'Risk', purpose: #STANDARD, type: #FIELDGROUP_REFERENCE,
+      label: 'Risk Indicators', position: 20, targetQualifier: 'RiskGroup' },
+    { id: 'ScorePoint', purpose: #HEADER, type: #DATAPOINT_REFERENCE,
+      position: 10, targetQualifier: 'RiskScore' }
+  ]
+
+  @UI.lineItem: [ { position: 10, label: 'Supplier' } ]
+  @UI.fieldGroup: [ { qualifier: 'MasterGroup', position: 10 } ]
+  Supplier;
+
+  @UI.lineItem: [ { position: 20, importance: #HIGH } ]
+  @UI.fieldGroup: [ { qualifier: 'MasterGroup', position: 20 } ]
+  SupplierName;
+
+  @UI.lineItem: [ { position: 30 } ]
+  @UI.fieldGroup: [ { qualifier: 'MasterGroup', position: 30 } ]
+  @UI.selectionField: [ { position: 20 } ]
+  Country;
+
+  @UI.lineItem: [ { position: 40, label: 'Rating' } ]
+  @UI.fieldGroup: [ { qualifier: 'RiskGroup', position: 10 } ]
+  @UI.selectionField: [ { position: 30 } ]
+  FinancialRating;
+
+  @UI.lineItem: [ { position: 50, label: 'On Time Delivery' } ]
+  @UI.fieldGroup: [ { qualifier: 'RiskGroup', position: 20 } ]
+  OnTimeDeliveryRate;
+
+  @UI.lineItem: [ { position: 60, label: 'Quality Incidents 12M' } ]
+  @UI.fieldGroup: [ { qualifier: 'RiskGroup', position: 30 } ]
+  QualityIncidents12M;
+
+  @UI.fieldGroup: [ { qualifier: 'RiskGroup', position: 40 } ]
+  IsoCertified;
+
+  // The gauge thresholds mirror ZCL_PR_RISK_SCORING=>THRESHOLD: 25 turns it
+  // yellow, 55 red.
+  @UI: {
+    lineItem: [ { position: 70, criticality: 'RiskCriticality',
+                  label: 'Risk Score', importance: #HIGH } ],
+    dataPoint: { qualifier: 'RiskScore', title: 'Risk Score',
+                 targetValueElement: 'RiskScore',
+                 visualization: #PROGRESS,
+                 criticalityCalculation: {
+                   improvementDirection: #MINIMIZE,
+                   toleranceRangeHighValue: 25,
+                   deviationRangeHighValue: 55 } },
+    fieldGroup: [ { qualifier: 'RiskGroup', position: 50 } ]
+  }
+  RiskScore;
+
+  @UI.lineItem: [ { position: 80, criticality: 'RiskCriticality', label: 'Risk Class' } ]
+  @UI.fieldGroup: [ { qualifier: 'RiskGroup', position: 60 } ]
+  @UI.selectionField: [ { position: 10 } ]
+  RiskClass;
+
+  @UI.fieldGroup: [ { qualifier: 'RiskGroup', position: 70 } ]
+  RiskCalculatedAt;
+
+  @UI.lineItem: [ { position: 90, criticality: #NEGATIVE, label: 'Blocked' } ]
+  @UI.fieldGroup: [ { qualifier: 'MasterGroup', position: 40 } ]
+  @UI.selectionField: [ { position: 40 } ]
+  PostingIsBlocked;
+
+  @UI.hidden: true
+  RiskCriticality;
+}

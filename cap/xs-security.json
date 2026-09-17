@@ -1,0 +1,82 @@
+{
+  "xsappname": "acme-procurement",
+  "tenant-mode": "dedicated",
+  "description": "Security descriptor for the procurement side-by-side extension",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Requester",
+      "description": "Create purchase requisitions and submit them for approval"
+    },
+    {
+      "name": "$XSAPPNAME.ApproverL1",
+      "description": "Approve on level 1 (team lead)"
+    },
+    {
+      "name": "$XSAPPNAME.ApproverL2",
+      "description": "Approve on level 2 (department head)"
+    },
+    {
+      "name": "$XSAPPNAME.ApproverL3",
+      "description": "Approve on level 3 (CFO)"
+    },
+    {
+      "name": "$XSAPPNAME.ProcurementAdmin",
+      "description": "Maintain supplier master data and run the risk recalculation"
+    }
+  ],
+  "attributes": [],
+  "role-templates": [
+    {
+      "name": "Requester",
+      "description": "Requests goods and services",
+      "scope-references": ["$XSAPPNAME.Requester"]
+    },
+    {
+      "name": "TeamLead",
+      "description": "Approves everyday demand",
+      "scope-references": ["$XSAPPNAME.Requester", "$XSAPPNAME.ApproverL1"]
+    },
+    {
+      "name": "DepartmentHead",
+      "description": "Approves mid-size demand",
+      "scope-references": ["$XSAPPNAME.Requester", "$XSAPPNAME.ApproverL1", "$XSAPPNAME.ApproverL2"]
+    },
+    {
+      "name": "CFO",
+      "description": "Approves capital expenditure and all high risk suppliers",
+      "scope-references": ["$XSAPPNAME.ApproverL1", "$XSAPPNAME.ApproverL2", "$XSAPPNAME.ApproverL3"]
+    },
+    {
+      "name": "ProcurementAdmin",
+      "description": "Maintains supplier master data",
+      "scope-references": ["$XSAPPNAME.ProcurementAdmin", "$XSAPPNAME.Requester"]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "Procurement_Requester",
+      "description": "Requests goods and services",
+      "role-template-references": ["$XSAPPNAME.Requester"]
+    },
+    {
+      "name": "Procurement_TeamLead",
+      "description": "Approves on level 1",
+      "role-template-references": ["$XSAPPNAME.TeamLead"]
+    },
+    {
+      "name": "Procurement_DepartmentHead",
+      "description": "Approves on level 2",
+      "role-template-references": ["$XSAPPNAME.DepartmentHead"]
+    },
+    {
+      "name": "Procurement_CFO",
+      "description": "Approves on level 3",
+      "role-template-references": ["$XSAPPNAME.CFO"]
+    },
+    {
+      "name": "Procurement_Admin",
+      "description": "Maintains supplier master data",
+      "role-template-references": ["$XSAPPNAME.ProcurementAdmin"]
+    }
+  ]
+}

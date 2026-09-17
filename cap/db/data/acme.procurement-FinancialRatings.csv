@@ -1,0 +1,11 @@
+code;name;descr;riskPoints
+AAA;AAA;Highest quality - minimal credit risk;0
+AA;AA;High quality - very low credit risk;5
+A;A;Upper medium grade - low credit risk;10
+BBB;BBB;Medium grade - moderate credit risk;20
+BB;BB;Speculative - substantial credit risk;35
+B;B;Highly speculative - high credit risk;50
+CCC;CCC;Substantial risk - very high credit risk;70
+CC;CC;Very high risk - default is probable;85
+C;C;Extremely speculative - default is imminent;95
+D;D;In default;100

@@ -1,0 +1,65 @@
+_schema-version: '3.1'
+ID: acme-procurement
+version: 1.0.0
+description: >
+  Purchase requisition approval and supplier risk scoring - side-by-side
+  extension on SAP BTP, Cloud Foundry runtime.
+
+parameters:
+  enable-parallel-deployments: true
+
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npx cds build --production
+
+modules:
+  # ------------------------------------------------------------------ service
+  # Serves the OData services and, in this demo landscape, the two Fiori
+  # Elements apps from the same module. Moving the apps into the HTML5
+  # application repository is the next step for a productive setup - see
+  # docs/adr/0006-deployment-topology.md.
+  - name: acme-procurement-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      buildpack: nodejs_buildpack
+      instances: 1
+      memory: 512M
+      disk-quota: 1024M
+    build-parameters:
+      builder: npm
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+    requires:
+      - name: acme-procurement-db
+      - name: acme-procurement-auth
+
+  # ------------------------------------------------------- HDI deployer (HANA)
+  - name: acme-procurement-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+    requires:
+      - name: acme-procurement-db
+
+resources:
+  - name: acme-procurement-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+
+  - name: acme-procurement-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+      config:
+        xsappname: acme-procurement-${org}-${space}
+        tenant-mode: dedicated

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supplier Risk</title>
+  <script
+    id="sap-ui-bootstrap"
+    <!-- SAPUI5, not OpenUI5: sap.fe.templates (Fiori Elements) ships with
+         SAPUI5 only and is not part of the OpenUI5 distribution. -->
+    src="https://ui5.sap.com/resources/sap-ui-core.js"
+    data-sap-ui-theme="sap_horizon"
+    data-sap-ui-async="true"
+    data-sap-ui-compat-version="edge"
+    data-sap-ui-frame-options="trusted"
+    data-sap-ui-on-init="module:sap/ui/core/ComponentSupport"
+    data-sap-ui-resource-roots='{"acme.procurement.suppliers": "./"}'>
+  </script>
+</head>
+<body class="sapUiBody">
+  <div
+    data-sap-ui-component
+    data-name="acme.procurement.suppliers"
+    data-id="container"
+    data-settings='{"id": "acmeProcurementSuppliers"}'
+    data-height="100%">
+  </div>
+</body>
+</html>

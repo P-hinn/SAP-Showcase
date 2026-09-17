@@ -1,0 +1,14 @@
+@EndUserText.label: 'Manage Purchase Requisitions'
+define service ZUI_PR_Requisition {
+  expose ZC_PR_Requisition as PurchaseRequisitions;
+  expose ZC_PR_ReqItem     as PurchaseRequisitionItems;
+  expose ZC_PR_Approval    as ApprovalSteps;
+  expose ZC_PR_Supplier    as Suppliers;
+
+  // Value help providers. Exposing the released standard views rather than
+  // copies of them means the value help follows the backend, not a snapshot.
+  expose I_ProductStdVH       as Products;
+  expose I_PlantStdVH         as Plants;
+  expose I_CurrencyStdVH      as Currencies;
+  expose I_UnitOfMeasureStdVH as UnitsOfMeasure;
+}

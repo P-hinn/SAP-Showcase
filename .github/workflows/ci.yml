@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: cap
+
+jobs:
+  cap:
+    name: CAP service
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: cap/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # A broken annotation model compiles to broken OData metadata rather than
+      # failing loudly, so the metadata generation is part of the build.
+      - name: Compile the CDS model and the OData metadata
+        run: npm run compile:check
+
+      - name: Test
+        run: npm run test:coverage
+
+      # Proves that mta.yaml refers to folders the build actually produces.
+      - name: Production build
+        run: npm run build
+
+      - name: Check the production build output
+        run: |
+          test -d gen/srv || { echo "gen/srv missing - mta.yaml would not deploy"; exit 1; }
+          test -d gen/db  || { echo "gen/db missing - the HDI deployer would not deploy"; exit 1; }
+          echo "gen/srv and gen/db present"
+
+  abap:
+    name: ABAP static checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: abap
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # There is no ABAP system in this pipeline, so the ABAP package cannot be
+      # activated or unit tested here - abap/README.md says so plainly. What
+      # can be checked without a system is checked.
+      - name: Object names match file names
+        run: |
+          status=0
+          while IFS= read -r file; do
+            base="$(basename "$file")"
+            object="${base%%.*}"
+            # Local types files hold local classes only and never name the
+            # global object they belong to - that is what makes them local.
+            case "$base" in *.locals_imp.abap|*.locals_def.abap) continue ;; esac
+            # For every other object, ADT and abapGit require the file name to
+            # be the object name, so the name must appear in the source.
+            if ! grep -qi -- "$object" "$file"; then
+              echo "::error file=$file::file name '$object' does not appear in the source"
+              status=1
+            fi
+          done < <(find src -type f \( -name '*.asddls' -o -name '*.asbdef' -o -name '*.abap' -o -name '*.srvdsrv' -o -name '*.asddlxs' \))
+          exit $status
+
+      - name: No leftover debugging statements
+        run: |
+          if grep -rniE '^\s*(BREAK-POINT|BREAK [a-z]|WRITE\s*:?\s*/)' src --include='*.abap'; then
+            echo "::error::debugging statements found in the ABAP sources"
+            exit 1
+          fi
+          echo "none found"
+
+      - name: Message numbers agree with the CAP implementation
+        run: |
+          # The two stacks promise the same message numbers. Check it instead
+          # of trusting it.
+          abap=$(grep -oP "VALUE '\K0\d{2}(?=',)" src/classes/zcl_pr_approval_policy.clas.abap | sort -u | tr '\n' ' ')
+          cap=$(grep -oP "'PR\K\d{3}(?=')" ../cap/srv/lib/approval-policy.js | sort -u | tr '\n' ' ')
+          echo "ABAP: $abap"
+          echo "CAP : $cap"
+          if [ "$abap" != "$cap" ]; then
+            echo "::error::the message numbers of the two implementations have drifted apart"
+            exit 1
+          fi
+          echo "message numbers agree"
+
+  docs:
+    name: Documentation links
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # Overrides the workflow default of `cap`: the link check has to run
+        # from the repository root, or it silently checks nothing and passes.
+        working-directory: .
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # A README full of dead links is the first thing a reader notices.
+      - name: Relative links resolve
+        run: |
+          status=0
+          while IFS= read -r file; do
+            dir="$(dirname "$file")"
+            # No pipe here on purpose: a `while read` behind a pipe runs in a
+            # subshell, where setting status has no effect on the exit code.
+            for link in $(grep -oP '\]\(\K[^)#]+(?=[)#])' "$file"); do
+              case "$link" in http*|mailto:*) continue ;; esac
+              if [ ! -e "$dir/$link" ]; then
+                echo "::error file=$file::broken link: $link"
+                status=1
+              fi
+            done
+          done < <(find . -name '*.md' -not -path './cap/node_modules/*')
+          exit $status

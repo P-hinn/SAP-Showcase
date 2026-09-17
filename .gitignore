@@ -1,0 +1,6 @@
+node_modules/
+gen/
+coverage/
+*.sqlite
+*.db
+.cdsrc-private.json

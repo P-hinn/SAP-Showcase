@@ -1,0 +1,345 @@
+'use strict';
+
+const policy = require('../srv/lib/approval-policy');
+const { STATUS, MSG } = policy;
+
+const codesOf = (findings) => findings.map((finding) => finding.code);
+
+describe('approval policy', () => {
+
+  describe('determineRequiredLevel', () => {
+    it.each([
+      // value      A    B    C
+      [0, 1, 1, 2],
+      [4999.99, 1, 1, 2],
+      [5000, 1, 2, 2],
+      [24999.99, 1, 2, 2],
+      [25000, 2, 2, 3],
+      [99999.99, 2, 2, 3],
+      [100000, 3, 3, 3],
+      [5000000, 3, 3, 3]
+    ])('at %p EUR requires L%i / L%i / L%i for risk class A / B / C', (totalValue, a, b, c) => {
+      expect(policy.determineRequiredLevel({ totalValue, riskClass: 'A' })).toBe(a);
+      expect(policy.determineRequiredLevel({ totalValue, riskClass: 'B' })).toBe(b);
+      expect(policy.determineRequiredLevel({ totalValue, riskClass: 'C' })).toBe(c);
+    });
+
+    it('treats an unknown risk class as medium', () => {
+      expect(policy.determineRequiredLevel({ totalValue: 10000, riskClass: undefined }))
+        .toBe(policy.determineRequiredLevel({ totalValue: 10000, riskClass: 'B' }));
+    });
+
+    it('is never cheaper for a riskier supplier', () => {
+      for (const value of [0, 4999, 5000, 24999, 25000, 99999, 100000, 250000]) {
+        const a = policy.determineRequiredLevel({ totalValue: value, riskClass: 'A' });
+        const b = policy.determineRequiredLevel({ totalValue: value, riskClass: 'B' });
+        const c = policy.determineRequiredLevel({ totalValue: value, riskClass: 'C' });
+        expect(b).toBeGreaterThanOrEqual(a);
+        expect(c).toBeGreaterThanOrEqual(b);
+      }
+    });
+
+    it('is monotonic in the requisition value', () => {
+      for (const riskClass of ['A', 'B', 'C']) {
+        let previous = 0;
+        for (const value of [0, 4999, 5000, 24999, 25000, 99999, 100000, 250000]) {
+          const level = policy.determineRequiredLevel({ totalValue: value, riskClass });
+          expect(level).toBeGreaterThanOrEqual(previous);
+          previous = level;
+        }
+      }
+    });
+
+    it('never exceeds the highest existing level', () => {
+      expect(policy.determineRequiredLevel({ totalValue: 1e12, riskClass: 'C' }))
+        .toBeLessThanOrEqual(policy.MAX_APPROVAL_LEVEL);
+    });
+  });
+
+  describe('buildApprovalChain', () => {
+    it('creates one pending step per level', () => {
+      expect(policy.buildApprovalChain(3)).toEqual([
+        { level: 1, decision: 'PEND' },
+        { level: 2, decision: 'PEND' },
+        { level: 3, decision: 'PEND' }
+      ]);
+    });
+
+    it('never creates more steps than there are levels', () => {
+      expect(policy.buildApprovalChain(99)).toHaveLength(policy.MAX_APPROVAL_LEVEL);
+    });
+  });
+
+  describe('lifecycle', () => {
+    it.each([
+      ['submit', STATUS.DRAFT, STATUS.IN_APPROVAL],
+      ['approve', STATUS.IN_APPROVAL, STATUS.IN_APPROVAL],
+      ['reject', STATUS.IN_APPROVAL, STATUS.REJECTED],
+      ['withdraw', STATUS.IN_APPROVAL, STATUS.DRAFT],
+      ['close', STATUS.APPROVED, STATUS.CLOSED],
+      ['reopen', STATUS.REJECTED, STATUS.DRAFT]
+    ])('allows %s from %s to %s', (action, from, to) => {
+      expect(policy.canPerform(action, from)).toBe(true);
+      expect(policy.targetStatus(action, from)).toBe(to);
+    });
+
+    it.each([
+      ['submit', STATUS.IN_APPROVAL],
+      ['submit', STATUS.APPROVED],
+      ['approve', STATUS.DRAFT],
+      ['approve', STATUS.APPROVED],
+      ['withdraw', STATUS.APPROVED],
+      ['close', STATUS.DRAFT],
+      ['reopen', STATUS.APPROVED]
+    ])('forbids %s from %s', (action, from) => {
+      expect(policy.canPerform(action, from)).toBe(false);
+      expect(policy.targetStatus(action, from)).toBeNull();
+    });
+
+    it('rejects an unknown action', () => {
+      expect(policy.canPerform('teleport', STATUS.DRAFT)).toBe(false);
+    });
+
+    it('is a closed system - a closed requisition is a dead end', () => {
+      for (const action of Object.keys(policy.TRANSITIONS)) {
+        expect(policy.canPerform(action, STATUS.CLOSED)).toBe(false);
+      }
+    });
+  });
+
+  describe('validateForSubmission', () => {
+    const today = '2026-09-17';
+    const validItem = {
+      itemNumber: 10,
+      quantity: 10,
+      unitPrice: 100,
+      netAmount: 1000,
+      deliveryDate: '2026-12-01',
+      supplier: { name: 'Nordwind Stahl GmbH', isBlocked: false }
+    };
+    const validHeader = { title: 'Steel plates', costCenter_ID: 'cc-1' };
+    const costCenter = { costCenterCode: '1000-4711', annualBudget: 100000, consumedBudget: 10000 };
+
+    it('accepts a valid requisition', () => {
+      const findings = policy.validateForSubmission({
+        requisition: validHeader, items: [validItem], costCenter, today
+      });
+      expect(findings).toEqual([]);
+    });
+
+    it('requires at least one item', () => {
+      const findings = policy.validateForSubmission({
+        requisition: validHeader, items: [], costCenter, today
+      });
+      expect(codesOf(findings)).toContain(MSG.NO_ITEMS);
+    });
+
+    it.each([
+      ['a zero quantity', { quantity: 0 }, MSG.QUANTITY_NOT_POSITIVE],
+      ['a negative quantity', { quantity: -5 }, MSG.QUANTITY_NOT_POSITIVE],
+      ['a negative price', { unitPrice: -1 }, MSG.PRICE_NEGATIVE],
+      ['a delivery date in the past', { deliveryDate: '2020-01-01' }, MSG.DELIVERY_DATE_IN_PAST],
+      ['a missing delivery date', { deliveryDate: null }, MSG.DELIVERY_DATE_IN_PAST],
+      ['a blocked supplier', { supplier: { name: 'Kontinental', isBlocked: true } }, MSG.SUPPLIER_BLOCKED]
+    ])('rejects %s', (_label, override, expectedCode) => {
+      const findings = policy.validateForSubmission({
+        requisition: validHeader,
+        items: [{ ...validItem, ...override }],
+        costCenter,
+        today
+      });
+      expect(codesOf(findings)).toContain(expectedCode);
+    });
+
+    it('accepts a delivery date of today', () => {
+      const findings = policy.validateForSubmission({
+        requisition: validHeader,
+        items: [{ ...validItem, deliveryDate: today }],
+        costCenter,
+        today
+      });
+      expect(codesOf(findings)).not.toContain(MSG.DELIVERY_DATE_IN_PAST);
+    });
+
+    it('requires a title and a cost center', () => {
+      const findings = policy.validateForSubmission({
+        requisition: { title: '   ' }, items: [validItem], costCenter: null, today
+      });
+      expect(codesOf(findings)).toEqual(expect.arrayContaining([MSG.TITLE_MISSING, MSG.COST_CENTER_MISSING]));
+    });
+
+    it('collects every problem instead of stopping at the first', () => {
+      const findings = policy.validateForSubmission({
+        requisition: { title: '' },
+        items: [{ ...validItem, quantity: 0, unitPrice: -1, deliveryDate: '2019-01-01' }],
+        costCenter,
+        today
+      });
+      expect(findings.length).toBeGreaterThanOrEqual(4);
+      expect(findings.every((finding) => finding.message && finding.code)).toBe(true);
+    });
+
+    it('points every item finding at the field that caused it', () => {
+      const findings = policy.validateForSubmission({
+        requisition: validHeader, items: [{ ...validItem, quantity: 0 }], costCenter, today
+      });
+      expect(findings[0].target).toBe('items(0)/quantity');
+    });
+
+    describe('budget check', () => {
+      it('rejects a requisition that exceeds the remaining budget', () => {
+        const findings = policy.validateForSubmission({
+          requisition: validHeader,
+          items: [{ ...validItem, netAmount: 95000 }],
+          costCenter: { costCenterCode: '2000-5001', annualBudget: 100000, consumedBudget: 10000 },
+          today
+        });
+        expect(codesOf(findings)).toContain(MSG.BUDGET_EXCEEDED);
+        expect(findings[0].message).toContain('90000.00');
+        expect(findings[0].message).toContain('95000.00');
+      });
+
+      it('allows a requisition that uses the remaining budget to the last cent', () => {
+        const findings = policy.validateForSubmission({
+          requisition: validHeader,
+          items: [{ ...validItem, netAmount: 90000 }],
+          costCenter: { costCenterCode: '2000-5001', annualBudget: 100000, consumedBudget: 10000 },
+          today
+        });
+        expect(codesOf(findings)).not.toContain(MSG.BUDGET_EXCEEDED);
+      });
+
+      it('skips the check when no budget is maintained', () => {
+        const findings = policy.validateForSubmission({
+          requisition: validHeader,
+          items: [{ ...validItem, netAmount: 1e9 }],
+          costCenter: { costCenterCode: '9999', annualBudget: null },
+          today
+        });
+        expect(codesOf(findings)).not.toContain(MSG.BUDGET_EXCEEDED);
+      });
+    });
+  });
+
+  describe('validateDecision', () => {
+    const inApproval = {
+      status_code: STATUS.IN_APPROVAL,
+      requester: 'rita',
+      createdBy: 'rita',
+      currentApprovalLevel: 0,
+      requiredApprovalLevel_code: 2
+    };
+
+    it('accepts an approver with the right role', () => {
+      const findings = policy.validateDecision({
+        requisition: inApproval, action: 'approve', user: 'tom', roles: ['ApproverL1']
+      });
+      expect(findings).toEqual([]);
+    });
+
+    it('blocks the requester from approving their own requisition', () => {
+      const findings = policy.validateDecision({
+        requisition: inApproval, action: 'approve', user: 'rita', roles: ['ApproverL1', 'ApproverL2']
+      });
+      expect(codesOf(findings)).toContain(MSG.SELF_APPROVAL);
+    });
+
+    it('blocks the creator even when someone else is named as requester', () => {
+      const findings = policy.validateDecision({
+        requisition: { ...inApproval, requester: 'mona', createdBy: 'rita' },
+        action: 'approve',
+        user: 'rita',
+        roles: ['ApproverL1']
+      });
+      expect(codesOf(findings)).toContain(MSG.SELF_APPROVAL);
+    });
+
+    it('blocks an approver without the role for the pending level', () => {
+      const findings = policy.validateDecision({
+        requisition: { ...inApproval, currentApprovalLevel: 1 },
+        action: 'approve',
+        user: 'tom',
+        roles: ['ApproverL1']
+      });
+      expect(codesOf(findings)).toContain(MSG.MISSING_APPROVAL_ROLE);
+    });
+
+    it('blocks a decision on a requisition that is not in approval', () => {
+      const findings = policy.validateDecision({
+        requisition: { ...inApproval, status_code: STATUS.DRAFT },
+        action: 'approve',
+        user: 'tom',
+        roles: ['ApproverL1']
+      });
+      expect(codesOf(findings)).toEqual([MSG.INVALID_TRANSITION]);
+    });
+
+    it('blocks a decision once the chain is complete', () => {
+      const findings = policy.validateDecision({
+        requisition: { ...inApproval, currentApprovalLevel: 2 },
+        action: 'approve',
+        user: 'carl',
+        roles: ['ApproverL1', 'ApproverL2', 'ApproverL3']
+      });
+      expect(codesOf(findings)).toContain(MSG.NO_PENDING_STEP);
+    });
+
+    it('applies the same rules to a rejection', () => {
+      const findings = policy.validateDecision({
+        requisition: inApproval, action: 'reject', user: 'rita', roles: ['ApproverL1']
+      });
+      expect(codesOf(findings)).toContain(MSG.SELF_APPROVAL);
+    });
+  });
+
+  describe('approval chain arithmetic', () => {
+    it('starts at level 1', () => {
+      expect(policy.nextApprovalLevel(0)).toBe(1);
+      expect(policy.nextApprovalLevel(null)).toBe(1);
+      expect(policy.nextApprovalLevel(undefined)).toBe(1);
+    });
+
+    it('recognises the final level', () => {
+      expect(policy.isFinalApproval(2, 2)).toBe(true);
+      expect(policy.isFinalApproval(1, 2)).toBe(false);
+    });
+
+    it('derives the role name from the level', () => {
+      expect(policy.approvalRole(1)).toBe('ApproverL1');
+      expect(policy.approvalRole(3)).toBe('ApproverL3');
+    });
+  });
+});
+
+describe('validateItem', () => {
+  const today = '2026-09-17';
+  const item = {
+    itemNumber: 10,
+    quantity: 10,
+    unitPrice: 100,
+    deliveryDate: '2026-12-01',
+    supplier: { name: 'Nordwind Stahl GmbH', isBlocked: false }
+  };
+
+  it('accepts a sound item', () => {
+    expect(policy.validateItem({ item, today })).toEqual([]);
+  });
+
+  it('is the same code path validateForSubmission uses', () => {
+    const broken = { ...item, quantity: 0 };
+    const standalone = policy.validateItem({ item: broken, index: 0, today });
+    const throughSubmission = policy.validateForSubmission({
+      requisition: { title: 'x', costCenter_ID: 'cc' },
+      items: [broken],
+      costCenter: null,
+      today
+    });
+    expect(throughSubmission).toEqual(expect.arrayContaining(standalone));
+  });
+
+  it('numbers the target by position when the item has no number yet', () => {
+    const findings = policy.validateItem({ item: { ...item, itemNumber: undefined, quantity: 0 }, index: 2, today });
+    expect(findings[0].target).toBe('items(2)/quantity');
+    expect(findings[0].message).toContain('Item 30');
+  });
+});

@@ -1,0 +1,5 @@
+code;name;descr;criticality
+PEND;Pending;Waiting for a decision;2
+APPR;Approved;Approved by the responsible approver;3
+REJE;Rejected;Rejected - the requisition goes back to the requester;1
+SKIP;Skipped;Not required after a recalculation of the approval path;0
