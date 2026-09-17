@@ -1,7 +1,15 @@
 # Demo walkthrough
 
 Every request and every response below was recorded against the running
-service, not written by hand. Reproduce it with:
+service, not written by hand.
+
+> **Recorded before the customer demo extensions.** The service has grown since:
+> responses now carry additional fields (`pendingApprovalLevel`,
+> `purchaseOrderNumbers`, `s4SyncedAt`), the sample data contains one more
+> requisition, so document numbers shift by one, and `close` now creates a
+> purchase order in S/4HANA. The requests themselves still work as shown.
+
+Reproduce it with:
 
 ```bash
 cd cap && npm install && npm start

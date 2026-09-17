@@ -70,9 +70,9 @@ both stacks:
 |---|---|---|
 | Rules | `ZCL_PR_APPROVAL_POLICY`, `ZCL_PR_RISK_SCORING` | `srv/lib/approval-policy.ts`, `srv/lib/risk-scoring.ts` |
 | Plumbing | behaviour pool `ZBP_I_PR_REQUISITION` | `srv/procurement-service.ts` |
-| Tests on the rules | 51 ABAP Unit tests, no database | 101 Jest tests, no database |
-| Tests on the fixtures | - | 24 tests recomputing every derived value in `db/data` |
-| Tests on the plumbing | - | 38 integration tests over HTTP |
+| Tests on the rules | 51 ABAP Unit tests, no database | 128 Jest tests, no database |
+| Tests on the fixtures | - | 25 tests recomputing every derived value in `db/data` |
+| Tests on the plumbing | - | 59 integration tests over HTTP |
 
 The rule classes contain no `SELECT`, no `req`, no `MODIFY ENTITIES`. They take
 plain structures and return plain findings. Three things follow from that:
@@ -82,6 +82,26 @@ plain structures and return plain findings. Three things follow from that:
 3. The two implementations can be compared line by line - which is what makes
    the Clean Core discussion in [`adr/0001`](adr/0001-onstack-vs-sidebyside.md)
    concrete rather than theoretical.
+
+## What the CAP side has on top
+
+The side-by-side implementation carries the parts a customer demo needs, and
+they have no ABAP counterpart (see the parity note in
+[`business-rules.md`](business-rules.md)):
+
+| Building block | Where | What it does |
+|---|---|---|
+| Approver inbox | `MyApprovalTasks` + `app/approvals` | Requisitions waiting for exactly the calling user's level. The filter (pending level, roles, segregation of duties) is pushed into the database query; approve and reject are bound actions on the same projection. |
+| Audit trail | `RequisitionEvents` | Append-only history per requisition, written by the service only. Includes adjustments nobody clicked. |
+| Risk propagation | `reassessApprovalPath()` | A risk change re-derives the approval path of open requisitions ([`adr/0008`](adr/0008-risk-changes-never-shorten-the-path.md)). |
+| S/4HANA integration | `srv/external`, `srv/lib/s4-mapping.ts` | Supplier master data in, purchase orders out, through released OData APIs ([`adr/0009`](adr/0009-s4-integration-via-released-apis.md)). |
+| Cockpit | `app/cockpit.html` | Volume, risk exposure, budget utilisation and recent activity, read from the reporting service. |
+| Shell, tour, demo mode | `app/shared` | ShellBar with language, theme and user switch, onboarding tour, demo script, `resetData`. |
+
+**Demo mode is fenced off.** One-click user switching writes a cookie that
+`srv/demo-mode.ts` turns into mocked credentials, and `DemoService` refuses
+every call unless `cds.requires.auth.kind` is `mocked` or `basic`. With
+XSUAA/IAS - i.e. in any productive landscape - both are inert.
 
 ## Authorisation
 
@@ -93,7 +113,7 @@ Five roles, identical on both stacks:
 | `ApproverL1` | approve up to the first threshold |
 | `ApproverL2` | approve up to the second threshold |
 | `ApproverL3` | approve everything |
-| `ProcurementAdmin` | maintain supplier master data, run the risk recalculation |
+| `ProcurementAdmin` | maintain supplier master data, run the risk recalculation, update ratings, sync suppliers from S/4HANA |
 
 Three mechanisms carry it:
 

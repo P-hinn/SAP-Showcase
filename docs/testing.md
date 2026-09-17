@@ -1,6 +1,6 @@
 # Test strategy
 
-174 tests on the CAP side, 51 on the ABAP side. The interesting part is not the
+212 tests on the CAP side, 51 on the ABAP side. The interesting part is not the
 count - it is which layer each of them sits in and why.
 
 The CAP tests run through `ts-jest`, so the suite type checks the sources as it
@@ -11,15 +11,15 @@ runs them: `npm test` fails on a type error, not only on a failed assertion.
 ```
         few, slow, broad
               ▲
-   38 integration tests  ──  HTTP against the running service.
+   59 integration tests  ──  HTTP against the running service.
         (cap/test/           Prove the wiring: auth, draft round trips,
      procurement-service)    OData actions, side effects on the database.
               │
-   24 fixture tests      ──  Recompute every derived value in db/data from
+   25 fixture tests      ──  Recompute every derived value in db/data from
         (cap/test/           the rule modules. Prove the demo does not lie.
         fixtures)
               │
-  112 + 51 unit tests    ──  Rule modules only. No database, no HTTP.
+  128 + 51 unit tests    ──  Rule modules only. No database, no HTTP.
     (lib + ABAP Unit)        Prove the rules.
               ▼
        many, fast, narrow
@@ -86,7 +86,7 @@ const exts = process.env.CDS_TYPESCRIPT ? ['.ts','.js','.mjs'] : ['.js','.mjs']
 Without that flag the service still starts - it just serves the model with no
 custom handlers, and every action answers `501`. No compiler and no linter can
 see this; only a test that calls an action does. `test/setup.ts` sets the flag
-and the 38 integration tests are what proves it stayed set.
+and the 59 integration tests are what proves it stayed set.
 
 ## What is not tested, and why
 
@@ -110,7 +110,7 @@ tables with expands in a single query rather than three per supplier.
 
 ```bash
 cd cap
-npm test                  # 174 tests, type checked as they run
+npm test                  # 212 tests, type checked as they run
 npm run test:coverage     # with the coverage floor enforced
 npm run typecheck         # tsc --noEmit over srv and test
 npm run lint              # ESLint with type aware rules

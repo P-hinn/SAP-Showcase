@@ -71,8 +71,14 @@ const exts = process.env.CDS_TYPESCRIPT ? ['.ts','.js','.mjs'] : ['.js','.mjs']
 Without the flag, the service starts, serves the model, and answers `501` for
 every action - because it never found the implementation. `cds-ts` and
 `cds-tsx` set it; a Jest run has to set it itself (`test/setup.ts`). No
-compiler and no linter can see this. The 38 integration tests are what proves
+compiler and no linter can see this. The 43 integration tests are what proves
 it stayed set.
+
+The project's own `npm start` fell into it: the script was plain `cds-serve`,
+so the Fiori apps loaded, listed data - and every button answered `501`. The
+tests passed throughout, because they set the flag themselves. The script is
+now `cds-tsx serve`; the production build is unaffected, it runs the compiled
+JavaScript from `gen/srv`.
 
 ## Why TypeScript 6.0.3 and not 7.0.2
 
