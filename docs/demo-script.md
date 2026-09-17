@@ -29,7 +29,7 @@ If they push back ("why would you ever build it twice?"), agree with them:
 
 ## Minute 2-5: the rules, in front of a business person
 
-Open `cap/srv/lib/approval-policy.js` and scroll to `APPROVAL_MATRIX`.
+Open `cap/srv/lib/approval-policy.ts` and scroll to `APPROVAL_MATRIX`.
 
 > "This is the approval matrix. It is a table you can put in front of a
 > procurement lead, and it is the actual runtime behaviour - there is no second
@@ -40,7 +40,7 @@ Then `abap/src/classes/zcl_pr_approval_policy.clas.abap`, `approval_matrix( )`.
 > "Same table, ABAP. Same thresholds, same message numbers. If someone changes
 > one and not the other, a build goes red."
 
-Then the property tests - `approval-policy.test.js`,
+Then the property tests - `approval-policy.test.ts`,
 `is never cheaper for a riskier supplier`:
 
 > "These two do not test a value. They test a property: a riskier supplier is
@@ -99,13 +99,16 @@ honest account of a mistake and the test that now prevents it.
 
 [ADR 0004](adr/0004-money-handling.md).
 
-> "ABAP has exact decimal arithmetic. JavaScript has doubles.
+> "ABAP has exact decimal arithmetic. TypeScript does not - `number` is an
+> IEEE 754 double, and the type system changes nothing about that.
 > `24999.999999999996` is an ordinary result of a multiplication and it is on
-> the wrong side of a `< 25000` comparison - so roughly one requisition in a
+> the wrong side of a `< 25000` comparison, so roughly one requisition in a
 > thousand silently takes the cheaper approval path. That is an audit finding,
 > not a rounding inconvenience. Every comparison on the CAP side goes through
 > integer cents. On the ABAP side that helper does not exist, because it is not
-> needed - and the asymmetry is documented so nobody adds it 'for consistency'."
+> needed - and the asymmetry is documented so nobody adds it 'for consistency'.
+>
+> This is the example I use when someone assumes types alone make code safe."
 
 ## Minute 14-15: what is missing, and why
 
@@ -127,7 +130,7 @@ clean; very few can tell you precisely where it is not.
 **"Why no SAP Build Process Automation?"**
 Cost and coupling. Three fixed levels, one decision each, no deadlines. BPA
 adds a runtime, a licence and a second place where the process lives. The
-lifecycle is eight lines in `approval-policy.js`. The answer changes the moment
+lifecycle is eight lines in `approval-policy.ts`. The answer changes the moment
 deadlines or substitutions appear.
 
 **"How would you handle a supplier being blocked after approval?"**

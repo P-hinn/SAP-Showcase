@@ -263,7 +263,7 @@ Content-Type: application/json
 
 `changed: 0` is the correct answer here, not a bug: the stored scores already
 match what the scoring module computes, so the run is idempotent. The
-fixture test `test/fixtures.test.js` enforces exactly this property.
+fixture test `test/fixtures.test.ts` enforces exactly this property.
 
 ---
 

@@ -1,10 +1,10 @@
-'use strict';
+import cds from '@sap/cds';
 
-const cds = require('@sap/cds');
-
-const { lineAmount, sumAmounts, toMinorUnits } = require('./lib/money');
-const policy = require('./lib/approval-policy');
-const risk = require('./lib/risk-scoring');
+import { lineAmount, sumAmounts, toMinorUnits, type Amount } from './lib/money';
+import * as policy from './lib/approval-policy';
+import type { Finding, ValidatableItem, ValidatableRequisition } from './lib/approval-policy';
+import * as risk from './lib/risk-scoring';
+import type { RiskClass } from './lib/risk-scoring';
 
 /**
  * Implementation of the transactional procurement service.
@@ -14,38 +14,75 @@ const risk = require('./lib/risk-scoring');
  * modules, which is what makes the rules testable without a database and
  * comparable line by line with the ABAP implementation.
  */
-class ProcurementService extends cds.ApplicationService {
 
-  async init() {
-    const {
-      PurchaseRequisitions,
-      PurchaseRequisitionItems,
-      ApprovalSteps,
-      Suppliers,
-      CostCenters
-    } = this.entities;
+/** A requisition row as the database hands it back. */
+interface RequisitionRow extends ValidatableRequisition {
+  ID: string;
+  requisitionNumber?: string | null;
+  totalValue?: Amount;
+  supplierRiskClass_code?: string | null;
+}
+
+/** An item row enriched with the supplier attributes the rules need. */
+interface EnrichedItem extends ValidatableItem {
+  ID: string;
+  supplier_ID?: string | null;
+  /** What the database currently holds - used to skip no-op updates. */
+  storedNetAmount?: Amount;
+  storedItemNumber?: number | null;
+  netAmount: number;
+}
+
+/** Everything `submit` needs after recomputing the document from its items. */
+interface Recalculation {
+  items: EnrichedItem[];
+  totalValue: number;
+  riskClass: RiskClass | null;
+  requiredLevel: number;
+}
+
+interface CostCenterRow {
+  ID: string;
+  costCenterCode?: string | null;
+  annualBudget?: Amount;
+  consumedBudget?: Amount;
+}
+
+export default class ProcurementService extends cds.ApplicationService {
+  /** Entity references, resolved once in init() and reused by every handler. */
+  private entityRefs!: {
+    PurchaseRequisitions: any;
+    PurchaseRequisitionItems: any;
+    ApprovalSteps: any;
+    Suppliers: any;
+    CostCenters: any;
+  };
+
+  override async init(): Promise<void> {
+    const { PurchaseRequisitions, PurchaseRequisitionItems, ApprovalSteps, Suppliers, CostCenters } =
+      this.entities as Record<string, any>;
 
     this.entityRefs = { PurchaseRequisitions, PurchaseRequisitionItems, ApprovalSteps, Suppliers, CostCenters };
 
     // ---------------------------------------------------------------- reads
-    // Derived, non persisted field. Calculated on read so the list report can
-    // show it without a second round trip.
     // A virtual field can only be calculated from data that was actually read,
     // so if the client asks for the criticality we quietly add the column it
     // is derived from to the query.
     this.before('READ', Suppliers, (req) => {
-      const columns = req.query.SELECT?.columns;
+      const columns = (req.query as any)?.SELECT?.columns as Array<{ ref?: string[] }> | undefined;
       if (!columns) return;
-      const asks = (name) => columns.some((column) => column.ref?.[column.ref.length - 1] === name);
+      const asks = (name: string): boolean =>
+        columns.some((column) => column.ref?.[column.ref.length - 1] === name);
       if (asks('riskScoreCriticality') && !asks('riskClass_code')) {
         columns.push({ ref: ['riskClass_code'] });
       }
     });
 
-    this.after('READ', Suppliers, (rows) => {
-      for (const row of Array.isArray(rows) ? rows : [rows]) {
+    this.after('READ', Suppliers, (rows: unknown) => {
+      const list = Array.isArray(rows) ? rows : [rows];
+      for (const row of list as Array<Record<string, unknown>>) {
         if (row && row.riskClass_code !== undefined) {
-          row.riskScoreCriticality = criticalityForRiskClass(row.riskClass_code);
+          row.riskScoreCriticality = criticalityForRiskClass(row.riskClass_code as string | null);
         }
       }
     });
@@ -81,7 +118,7 @@ class ProcurementService extends cds.ApplicationService {
     this.on('recalculateRisk', Suppliers, (req) => this.onRecalculateRisk(req));
     this.on('recalculateAllSupplierRisks', (req) => this.onRecalculateAllRisks(req));
 
-    return super.init();
+    await super.init();
   }
 
   // ==================================================================
@@ -94,16 +131,17 @@ class ProcurementService extends cds.ApplicationService {
    * Handles both shapes CAP can deliver: a deep payload (draft activation or a
    * deep insert, where `req.data.items` is present) and a shallow one (a plain
    * PATCH on the header), in which case the items are read from the database.
-   *
-   * @param {import('@sap/cds').Request} req
    */
-  async deriveHeaderFields(req) {
-    const data = req.data;
+  private async deriveHeaderFields(req: cds.Request): Promise<void> {
+    const data = req.data as Record<string, any> | undefined;
     if (!data) return;
 
-    const id = data.ID ?? keyOf(req);
-    const items = Array.isArray(data.items) ? data.items : await this.readItems(id);
-    if (!items || items.length === 0) {
+    const id: string | undefined = data.ID ?? keyOf(req);
+    const items: Array<Record<string, any>> = Array.isArray(data.items)
+      ? data.items
+      : await this.readItems(id);
+
+    if (items.length === 0) {
       if (Object.prototype.hasOwnProperty.call(data, 'items') || id) {
         data.totalValue = 0;
         data.supplierRiskClass_code = null;
@@ -118,7 +156,7 @@ class ProcurementService extends cds.ApplicationService {
       item.netAmount = lineAmount(item.quantity, item.unitPrice);
     });
 
-    const supplierIds = [...new Set(items.map((item) => item.supplier_ID).filter(Boolean))];
+    const supplierIds = [...new Set(items.map((item) => item.supplier_ID).filter(Boolean))] as string[];
     const riskClasses = await this.readSupplierRiskClasses(supplierIds);
 
     data.totalValue = sumAmounts(items.map((item) => item.netAmount));
@@ -136,17 +174,15 @@ class ProcurementService extends cds.ApplicationService {
    * On a PATCH the client usually sends one field only, so the counterpart is
    * read from `req.subject` - which resolves to the draft row while the
    * requisition is being edited and to the active row afterwards.
-   *
-   * @param {import('@sap/cds').Request} req
    */
-  async deriveItemFields(req) {
-    const data = req.data;
+  private async deriveItemFields(req: cds.Request): Promise<void> {
+    const data = req.data as Record<string, any> | undefined;
     if (!data) return;
 
-    const materials = cds.entities('acme.procurement').Materials;
+    const { Materials } = cds.entities('acme.procurement') as Record<string, any>;
 
     if (data.material_ID) {
-      const material = await SELECT.one.from(materials).where({ ID: data.material_ID });
+      const material = await SELECT.one.from(Materials).where({ ID: data.material_ID });
       if (material) {
         data.description ??= material.description;
         data.unit ??= material.baseUnit;
@@ -158,8 +194,8 @@ class ProcurementService extends cds.ApplicationService {
     const touchesAmount = data.quantity !== undefined || data.unitPrice !== undefined;
     if (!touchesAmount) return;
 
-    let quantity = data.quantity;
-    let unitPrice = data.unitPrice;
+    let quantity: Amount = data.quantity;
+    let unitPrice: Amount = data.unitPrice;
 
     const isCreate = req.event === 'CREATE' || req.event === 'NEW';
     if (!isCreate && (quantity === undefined || unitPrice === undefined)) {
@@ -180,7 +216,7 @@ class ProcurementService extends cds.ApplicationService {
    * Validates first, then assigns the document number and materialises the
    * full approval chain so the object page can show it up front.
    */
-  async onSubmit(req) {
+  private async onSubmit(req: cds.Request): Promise<unknown> {
     const { PurchaseRequisitions, ApprovalSteps } = this.entityRefs;
     const id = keyOf(req);
     const requisition = await this.loadRequisition(id, req);
@@ -213,8 +249,7 @@ class ProcurementService extends cds.ApplicationService {
     // point where the document has to be internally consistent.
     await this.persistItemValues(derived.items);
 
-    const requisitionNumber = requisition.requisitionNumber
-      || await this.assignRequisitionNumber(req);
+    const requisitionNumber = requisition.requisitionNumber ?? (await this.assignRequisitionNumber(req));
 
     await UPDATE(PurchaseRequisitions, id).with({
       requisitionNumber,
@@ -242,12 +277,8 @@ class ProcurementService extends cds.ApplicationService {
     return this.readActive(id);
   }
 
-  /**
-   * Approves or rejects the next open approval level.
-   * @param {import('@sap/cds').Request} req
-   * @param {'approve'|'reject'} action
-   */
-  async onDecision(req, action) {
+  /** Approves or rejects the next open approval level. */
+  private async onDecision(req: cds.Request, action: 'approve' | 'reject'): Promise<unknown> {
     const { PurchaseRequisitions, ApprovalSteps } = this.entityRefs;
     const id = keyOf(req);
     const requisition = await this.loadRequisition(id, req);
@@ -262,7 +293,8 @@ class ProcurementService extends cds.ApplicationService {
     if (findings.length > 0) return raise(req, findings);
 
     const level = policy.nextApprovalLevel(requisition.currentApprovalLevel);
-    const comment = action === 'approve' ? (req.data.comment || null) : req.data.reason;
+    const data = req.data as { comment?: string; reason?: string };
+    const comment = action === 'approve' ? (data.comment ?? null) : data.reason;
 
     await UPDATE(ApprovalSteps)
       .set({
@@ -281,7 +313,7 @@ class ProcurementService extends cds.ApplicationService {
 
       await UPDATE(PurchaseRequisitions, id).with({
         status_code: policy.STATUS.REJECTED,
-        rejectionReason: req.data.reason,
+        rejectionReason: data.reason,
         completedAt: req.timestamp
       });
       return this.readActive(id);
@@ -303,7 +335,7 @@ class ProcurementService extends cds.ApplicationService {
   }
 
   /** Pulls a submitted requisition back into editing. */
-  async onWithdraw(req) {
+  private async onWithdraw(req: cds.Request): Promise<unknown> {
     const { PurchaseRequisitions, ApprovalSteps } = this.entityRefs;
     const id = keyOf(req);
     const requisition = await this.loadRequisition(id, req);
@@ -321,7 +353,8 @@ class ProcurementService extends cds.ApplicationService {
     if (Number(requisition.currentApprovalLevel) > 0) {
       return req.error({
         code: policy.MSG.INVALID_TRANSITION,
-        message: 'The requisition has already been approved on at least one level and can no longer be withdrawn.',
+        message:
+          'The requisition has already been approved on at least one level and can no longer be withdrawn.',
         status: 400
       });
     }
@@ -336,7 +369,7 @@ class ProcurementService extends cds.ApplicationService {
   }
 
   /** Puts a rejected requisition back into draft for rework. */
-  async onReopen(req) {
+  private async onReopen(req: cds.Request): Promise<unknown> {
     const { PurchaseRequisitions, ApprovalSteps } = this.entityRefs;
     const id = keyOf(req);
     const requisition = await this.loadRequisition(id, req);
@@ -363,7 +396,7 @@ class ProcurementService extends cds.ApplicationService {
   }
 
   /** Status only transition without side effects (close). */
-  async onSimpleTransition(req, action) {
+  private async onSimpleTransition(req: cds.Request, action: policy.LifecycleAction): Promise<unknown> {
     const { PurchaseRequisitions } = this.entityRefs;
     const id = keyOf(req);
     const requisition = await this.loadRequisition(id, req);
@@ -383,7 +416,7 @@ class ProcurementService extends cds.ApplicationService {
   }
 
   /** Recalculates the risk score of a single supplier. */
-  async onRecalculateRisk(req) {
+  private async onRecalculateRisk(req: cds.Request): Promise<unknown> {
     const id = keyOf(req);
     const assessment = await this.assessSupplierById(id, req);
     if (!assessment) return;
@@ -391,9 +424,12 @@ class ProcurementService extends cds.ApplicationService {
   }
 
   /** Recalculates every supplier. Entry point for the nightly job. */
-  async onRecalculateAllRisks(req) {
+  private async onRecalculateAllRisks(req: cds.Request): Promise<{ evaluated: number; changed: number }> {
     const { Suppliers } = this.entityRefs;
-    const suppliers = await SELECT.from(Suppliers).columns('ID', 'riskScore');
+    const suppliers: Array<{ ID: string; riskScore?: number | null }> = await SELECT.from(Suppliers).columns(
+      'ID',
+      'riskScore'
+    );
     let changed = 0;
 
     for (const supplier of suppliers) {
@@ -409,12 +445,12 @@ class ProcurementService extends cds.ApplicationService {
   // ==================================================================
 
   /** Reads the active (non draft) header. */
-  async readActive(id) {
+  private async readActive(id: string | undefined): Promise<RequisitionRow | undefined> {
     return SELECT.one.from(this.entityRefs.PurchaseRequisitions).where({ ID: id });
   }
 
   /** Reads the header and raises a 404 if it does not exist. */
-  async loadRequisition(id, req) {
+  private async loadRequisition(id: string | undefined, req: cds.Request): Promise<RequisitionRow | null> {
     const requisition = await this.readActive(id);
     if (!requisition) {
       req.error({ code: 'PR404', message: `Purchase requisition ${id} does not exist.`, status: 404 });
@@ -423,24 +459,20 @@ class ProcurementService extends cds.ApplicationService {
     return requisition;
   }
 
-  async readItems(requisitionId) {
+  private async readItems(requisitionId: string | undefined): Promise<Array<Record<string, any>>> {
     if (!requisitionId) return [];
     return SELECT.from(this.entityRefs.PurchaseRequisitionItems).where({ requisition_ID: requisitionId });
   }
 
-  async readCostCenter(costCenterId) {
+  private async readCostCenter(costCenterId: string | null | undefined): Promise<CostCenterRow | null> {
     if (!costCenterId) return null;
-    return SELECT.one.from(this.entityRefs.CostCenters).where({ ID: costCenterId });
+    return (await SELECT.one.from(this.entityRefs.CostCenters).where({ ID: costCenterId })) ?? null;
   }
 
-  /**
-   * Resolves the risk class of a set of suppliers.
-   * @param {string[]} supplierIds
-   * @returns {Promise<Map<string, string>>} supplier ID -> risk class code
-   */
-  async readSupplierRiskClasses(supplierIds) {
-    if (!supplierIds || supplierIds.length === 0) return new Map();
-    const rows = await SELECT.from(this.entityRefs.Suppliers)
+  /** Resolves the risk class of a set of suppliers, keyed by supplier ID. */
+  private async readSupplierRiskClasses(supplierIds: readonly string[]): Promise<Map<string, string>> {
+    if (supplierIds.length === 0) return new Map();
+    const rows: Array<{ ID: string; riskClass_code: string }> = await SELECT.from(this.entityRefs.Suppliers)
       .columns('ID', 'riskClass_code')
       .where({ ID: { in: supplierIds } });
     return new Map(rows.map((row) => [row.ID, row.riskClass_code]));
@@ -451,28 +483,25 @@ class ProcurementService extends cds.ApplicationService {
    * items. Used by `submit`, which must not trust whatever the header happens
    * to carry at that moment.
    */
-  async recalculate(requisition) {
+  private async recalculate(requisition: RequisitionRow): Promise<Recalculation> {
     const items = await this.readItems(requisition.ID);
-    const enriched = [];
 
-    const supplierIds = [...new Set(items.map((item) => item.supplier_ID).filter(Boolean))];
-    const suppliers = supplierIds.length
-      ? await SELECT.from(this.entityRefs.Suppliers)
-        .columns('ID', 'name', 'isBlocked', 'riskClass_code')
-        .where({ ID: { in: supplierIds } })
-      : [];
+    const supplierIds = [...new Set(items.map((item) => item.supplier_ID).filter(Boolean))] as string[];
+    const suppliers: Array<{ ID: string; name: string; isBlocked: boolean; riskClass_code: string }> =
+      supplierIds.length
+        ? await SELECT.from(this.entityRefs.Suppliers)
+            .columns('ID', 'name', 'isBlocked', 'riskClass_code')
+            .where({ ID: { in: supplierIds } })
+        : [];
     const supplierById = new Map(suppliers.map((supplier) => [supplier.ID, supplier]));
 
-    for (const item of items) {
-      enriched.push({
-        ...item,
-        /** What the database currently holds - used to skip no-op updates. */
-        storedNetAmount: item.netAmount,
-        storedItemNumber: item.itemNumber,
-        netAmount: lineAmount(item.quantity, item.unitPrice),
-        supplier: supplierById.get(item.supplier_ID) || null
-      });
-    }
+    const enriched: EnrichedItem[] = items.map((item) => ({
+      ...(item as EnrichedItem),
+      storedNetAmount: item.netAmount,
+      storedItemNumber: item.itemNumber,
+      netAmount: lineAmount(item.quantity, item.unitPrice),
+      supplier: supplierById.get(item.supplier_ID) ?? null
+    }));
 
     const totalValue = sumAmounts(enriched.map((item) => item.netAmount));
     const riskClass = risk.worstRiskClass(supplierIds.map((id) => supplierById.get(id)?.riskClass_code));
@@ -486,6 +515,27 @@ class ProcurementService extends cds.ApplicationService {
   }
 
   /**
+   * Writes back the item numbers and net amounts computed by `recalculate`.
+   * Only touches rows whose stored values actually differ.
+   */
+  private async persistItemValues(items: readonly EnrichedItem[]): Promise<void> {
+    const { PurchaseRequisitionItems } = this.entityRefs;
+
+    const updates = items
+      .map((item, index) => ({ item, itemNumber: (index + 1) * 10 }))
+      .filter(
+        ({ item, itemNumber }) =>
+          Number(item.storedItemNumber) !== itemNumber ||
+          toMinorUnits(item.storedNetAmount) !== toMinorUnits(item.netAmount)
+      )
+      .map(({ item, itemNumber }) =>
+        UPDATE(PurchaseRequisitionItems, item.ID).with({ itemNumber, netAmount: item.netAmount })
+      );
+
+    await Promise.all(updates);
+  }
+
+  /**
    * Assigns the next document number for the current year.
    *
    * A productive implementation would call a number range object (ABAP:
@@ -493,13 +543,13 @@ class ProcurementService extends cds.ApplicationService {
    * Reading the current maximum is good enough for a demo landscape and is
    * documented as such in docs/adr/0005-number-assignment.md.
    */
-  async assignRequisitionNumber(req) {
+  private async assignRequisitionNumber(req: cds.Request): Promise<string> {
     const year = new Date(req.timestamp).getUTCFullYear();
     const prefix = `PR-${year}-`;
-    const rows = await SELECT.from(this.entityRefs.PurchaseRequisitions)
+    const rows: Array<{ requisitionNumber: string }> = await SELECT.from(this.entityRefs.PurchaseRequisitions)
       .columns('requisitionNumber')
       .where({ requisitionNumber: { like: `${prefix}%` } })
-      .orderBy({ requisitionNumber: 'desc' })
+      .orderBy('requisitionNumber desc')
       .limit(1);
 
     const last = rows[0]?.requisitionNumber;
@@ -507,28 +557,8 @@ class ProcurementService extends cds.ApplicationService {
     return `${prefix}${String(next).padStart(6, '0')}`;
   }
 
-  /**
-   * Writes back the item numbers and net amounts computed by `recalculate`.
-   * Only touches rows whose stored values actually differ.
-   *
-   * @param {Array<object>} items items as returned by `recalculate`
-   */
-  async persistItemValues(items) {
-    const { PurchaseRequisitionItems } = this.entityRefs;
-
-    const updates = items
-      .map((item, index) => ({ item, itemNumber: (index + 1) * 10 }))
-      .filter(({ item, itemNumber }) =>
-        Number(item.storedItemNumber) !== itemNumber
-        || toMinorUnits(item.storedNetAmount) !== toMinorUnits(item.netAmount))
-      .map(({ item, itemNumber }) =>
-        UPDATE(PurchaseRequisitionItems, item.ID).with({ itemNumber, netAmount: item.netAmount }));
-
-    await Promise.all(updates);
-  }
-
   /** Adds the approved value to the consumed budget of the cost center. */
-  async commitBudget(requisition) {
+  private async commitBudget(requisition: RequisitionRow): Promise<void> {
     const costCenter = await this.readCostCenter(requisition.costCenter_ID);
     if (!costCenter) return;
     await UPDATE(this.entityRefs.CostCenters, costCenter.ID).with({
@@ -536,20 +566,30 @@ class ProcurementService extends cds.ApplicationService {
     });
   }
 
-  /**
-   * Resolves the rating tables, runs the scoring and persists the result.
-   * @returns {Promise<import('./lib/risk-scoring').RiskAssessment|null>}
-   */
-  async assessSupplierById(supplierId, req) {
+  /** Resolves the rating tables, runs the scoring and persists the result. */
+  private async assessSupplierById(
+    supplierId: string | undefined,
+    req: cds.Request
+  ): Promise<risk.RiskAssessment | null> {
     // One query, two expands: the rating table and the country risk table are
     // joined in the database rather than fetched one by one. This matters for
     // the bulk run, which would otherwise fire 3 statements per supplier.
-    const supplier = await SELECT.one.from(this.entityRefs.Suppliers)
+    const supplier = await SELECT.one
+      .from(this.entityRefs.Suppliers)
       .where({ ID: supplierId })
-      .columns((supplierRow) => {
+      .columns((supplierRow: any) => {
         supplierRow('*');
-        supplierRow.financialRating((rating) => { rating.riskPoints; });
-        supplierRow.countryRisk((country) => { country.riskPoints; });
+        // In CAP's column projection callback, naming a field IS how you
+        // select it - the expression is the API, not a mistake. There is no
+        // assignment to make, so the rule has to be waived here.
+        /* eslint-disable @typescript-eslint/no-unused-expressions */
+        supplierRow.financialRating((rating: any) => {
+          rating.riskPoints;
+        });
+        supplierRow.countryRisk((country: any) => {
+          country.riskPoints;
+        });
+        /* eslint-enable @typescript-eslint/no-unused-expressions */
       });
 
     if (!supplier) {
@@ -582,9 +622,10 @@ class ProcurementService extends cds.ApplicationService {
   /**
    * Only the requester, the creator or a procurement admin may move a
    * requisition through the requester side of the lifecycle.
-   * @returns {boolean} false if an error was raised
+   *
+   * @returns false if an error was raised
    */
-  mayEdit(req, requisition) {
+  private mayEdit(req: cds.Request, requisition: RequisitionRow): boolean {
     const user = req.user;
     if (user.is('ProcurementAdmin')) return true;
     if (requisition.requester === user.id || requisition.createdBy === user.id) return true;
@@ -606,20 +647,21 @@ class ProcurementService extends cds.ApplicationService {
  * Extracts the entity key from a bound action request. Draft enabled entities
  * carry a composite key (ID + IsActiveEntity), plain ones just the ID.
  */
-function keyOf(req) {
-  const key = req.params?.[req.params.length - 1];
+function keyOf(req: cds.Request): string | undefined {
+  const params = req.params as ReadonlyArray<unknown> | undefined;
+  const key = params?.[params.length - 1];
   if (!key) return undefined;
-  return typeof key === 'object' ? key.ID : key;
+  return typeof key === 'object' ? (key as { ID?: string }).ID : (key as string);
 }
 
 /** The request timestamp as an ISO calendar date (YYYY-MM-DD). */
-function today(req) {
+function today(req: cds.Request): string {
   return new Date(req.timestamp).toISOString().slice(0, 10);
 }
 
 /** Approval roles the user actually holds. */
-function rolesOf(user) {
-  const roles = [];
+function rolesOf(user: cds.User): string[] {
+  const roles: string[] = [];
   for (let level = 1; level <= policy.MAX_APPROVAL_LEVEL; level++) {
     const role = policy.approvalRole(level);
     if (user.is(role)) roles.push(role);
@@ -629,7 +671,7 @@ function rolesOf(user) {
 }
 
 /** Turns rule findings into OData error details. */
-function raise(req, findings) {
+function raise(req: cds.Request, findings: readonly Finding[]): void {
   for (const finding of findings) {
     req.error({
       code: finding.code,
@@ -641,8 +683,10 @@ function raise(req, findings) {
 }
 
 /** Fiori criticality for a risk class: 1 = red, 2 = yellow, 3 = green. */
-function criticalityForRiskClass(riskClass) {
-  return { A: 3, B: 2, C: 1 }[riskClass] ?? 0;
+function criticalityForRiskClass(riskClass: string | null | undefined): number {
+  const map: Record<string, number> = { A: 3, B: 2, C: 1 };
+  // `riskClass && map[riskClass]` would return '' for an empty risk class -
+  // a string where the caller expects a number. noUncheckedIndexedAccess
+  // caught it.
+  return map[riskClass ?? ''] ?? 0;
 }
-
-module.exports = ProcurementService;

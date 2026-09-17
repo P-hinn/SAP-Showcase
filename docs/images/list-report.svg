@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="446" viewBox="0 0 960 446" role="img"
+     aria-label="Schematic of the Manage Purchase Requisitions list report">
+  <style>
+    .f { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .h { font-size: 13px; font-weight: 600; fill: #556B82; }
+    .c { font-size: 13px; fill: #1D2D3E; }
+    .m { font-size: 13px; fill: #556B82; }
+    .n { font-size: 13px; fill: #1D2D3E; text-anchor: end; }
+    .t { font-size: 15px; font-weight: 600; fill: #FFFFFF; }
+    .s { font-size: 13px; font-weight: 600; }
+    .lbl { font-size: 11px; fill: #556B82; }
+    .btn { font-size: 12px; font-weight: 600; fill: #0070F2; }
+  </style>
+
+  <rect width="960" height="446" fill="#F5F6F7"/>
+
+  <!-- shell bar -->
+  <rect width="960" height="44" fill="#354A5F"/>
+  <text class="f t" x="20" y="28">Manage Purchase Requisitions</text>
+  <text class="f" x="880" y="28" font-size="12" fill="#C2D2E0">carl</text>
+
+  <!-- filter bar -->
+  <rect x="16" y="60" width="928" height="52" rx="8" fill="#FFFFFF" stroke="#D9DEE3"/>
+  <text class="f lbl" x="32" y="79">Status</text>
+  <rect x="32" y="85" width="120" height="20" rx="4" fill="#EDF1F5"/>
+  <text class="f c" x="40" y="99" font-size="12">In Approval</text>
+  <text class="f lbl" x="172" y="79">Supplier Risk</text>
+  <rect x="172" y="85" width="90" height="20" rx="4" fill="#EDF1F5"/>
+  <text class="f c" x="180" y="99" font-size="12">All</text>
+  <text class="f lbl" x="282" y="79">Cost Center</text>
+  <rect x="282" y="85" width="120" height="20" rx="4" fill="#EDF1F5"/>
+  <text class="f c" x="290" y="99" font-size="12">All</text>
+  <text class="f btn" x="880" y="99" text-anchor="end">Go</text>
+
+  <!-- table card -->
+  <rect x="16" y="124" width="928" height="306" rx="8" fill="#FFFFFF" stroke="#D9DEE3"/>
+  <text class="f" x="32" y="150" font-size="14" font-weight="600" fill="#1D2D3E">Purchase Requisitions (5)</text>
+  <text class="f btn" x="700" y="150">Submit</text>
+  <text class="f btn" x="770" y="150">Approve</text>
+  <text class="f btn" x="850" y="150">Reject</text>
+
+  <!-- header row -->
+  <line x1="16" y1="164" x2="944" y2="164" stroke="#D9DEE3"/>
+  <text class="f h" x="32" y="182">Requisition</text>
+  <text class="f h" x="150" y="182">Title</text>
+  <text class="f h" x="430" y="182">Requester</text>
+  <text class="f h" x="510" y="182">Cost Center</text>
+  <text class="f h" x="700" y="182" text-anchor="end">Total Net Value</text>
+  <text class="f h" x="760" y="182">Risk</text>
+  <text class="f h" x="812" y="182">Level</text>
+  <text class="f h" x="868" y="182">Status</text>
+  <line x1="16" y1="192" x2="944" y2="192" stroke="#D9DEE3"/>
+
+  <!-- row 1 -->
+  <text class="f c" x="32" y="216">PR-2026-000002</text>
+  <text class="f c" x="150" y="216">Microcontrollers series demand 2027</text>
+  <text class="f m" x="430" y="216">rita</text>
+  <text class="f m" x="510" y="216">1000-4712</text>
+  <text class="f n" x="700" y="216">27,150.00</text>
+  <circle cx="768" cy="212" r="4" fill="#BB0000"/>
+  <text class="f c" x="778" y="216">C</text>
+  <text class="f c" x="812" y="216">L3</text>
+  <text class="f s" x="868" y="216" fill="#E76500">In Approval</text>
+  <line x1="16" y1="230" x2="944" y2="230" stroke="#EAECEE"/>
+
+  <!-- row 2 -->
+  <text class="f c" x="32" y="254">PR-2026-000003</text>
+  <text class="f c" x="150" y="254">Notebook rollout wave 2</text>
+  <text class="f m" x="430" y="254">mona</text>
+  <text class="f m" x="510" y="254">2000-5001</text>
+  <text class="f n" x="700" y="254">21,750.00</text>
+  <circle cx="768" cy="250" r="4" fill="#36A41D"/>
+  <text class="f c" x="778" y="254">A</text>
+  <text class="f c" x="812" y="254">L1</text>
+  <text class="f s" x="868" y="254" fill="#256F3A">Approved</text>
+  <line x1="16" y1="268" x2="944" y2="268" stroke="#EAECEE"/>
+
+  <!-- row 3 -->
+  <text class="f c" x="32" y="292">PR-2026-000004</text>
+  <text class="f c" x="150" y="292">On-site maintenance contract 2027</text>
+  <text class="f m" x="430" y="292">tom</text>
+  <text class="f m" x="510" y="292">3000-6100</text>
+  <text class="f n" x="700" y="292">39,200.00</text>
+  <circle cx="768" cy="288" r="4" fill="#E76500"/>
+  <text class="f c" x="778" y="292">B</text>
+  <text class="f c" x="812" y="292">L2</text>
+  <text class="f s" x="868" y="292" fill="#BB0000">Rejected</text>
+  <line x1="16" y1="306" x2="944" y2="306" stroke="#EAECEE"/>
+
+  <!-- row 4 -->
+  <text class="f c" x="32" y="330">PR-2026-000005</text>
+  <text class="f c" x="150" y="330">Aluminium profiles workshop fixtures</text>
+  <text class="f m" x="430" y="330">rita</text>
+  <text class="f m" x="510" y="330">1000-4711</text>
+  <text class="f n" x="700" y="330">1,068.00</text>
+  <circle cx="768" cy="326" r="4" fill="#36A41D"/>
+  <text class="f c" x="778" y="330">A</text>
+  <text class="f c" x="812" y="330">L1</text>
+  <text class="f s" x="868" y="330" fill="#556B82">Closed</text>
+  <line x1="16" y1="344" x2="944" y2="344" stroke="#EAECEE"/>
+
+  <!-- row 5 -->
+  <text class="f m" x="32" y="368">—</text>
+  <text class="f c" x="150" y="368">Steel plates Q4 replenishment</text>
+  <text class="f m" x="430" y="368">rita</text>
+  <text class="f m" x="510" y="368">1000-4711</text>
+  <text class="f n" x="700" y="368">4,800.00</text>
+  <circle cx="768" cy="364" r="4" fill="#36A41D"/>
+  <text class="f c" x="778" y="368">A</text>
+  <text class="f c" x="812" y="368">L1</text>
+  <text class="f s" x="868" y="368" fill="#556B82">Draft</text>
+
+  <text class="f lbl" x="32" y="404">Colour and level come from the service, not the UI: status.criticality,</text>
+  <text class="f lbl" x="32" y="420">supplierRiskClass and requiredApprovalLevel are all derived server side.</text>
+</svg>

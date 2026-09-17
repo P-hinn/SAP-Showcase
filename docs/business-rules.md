@@ -35,7 +35,7 @@ Two properties are asserted by tests rather than left to good intentions:
 An unassessed supplier counts as **medium** risk - not knowing must not be the
 cheap option.
 
-> Implemented in `cap/srv/lib/approval-policy.js` → `APPROVAL_MATRIX` and
+> Implemented in `cap/srv/lib/approval-policy.ts` → `APPROVAL_MATRIX` and
 > `abap/src/classes/zcl_pr_approval_policy.clas.abap` → `APPROVAL_MATRIX( )`.
 > Boundaries are exclusive; 4,999.99 EUR is still the cheaper tier.
 
@@ -69,7 +69,7 @@ better than a complete one - that property has its own test on both stacks.
 A requisition inherits the **worst** risk class of all its item suppliers. One
 bad supplier in one item raises the approval level for the whole document.
 
-> `cap/srv/lib/risk-scoring.js` and
+> `cap/srv/lib/risk-scoring.ts` and
 > `abap/src/classes/zcl_pr_risk_scoring.clas.abap`.
 
 ## 3. Submit validations

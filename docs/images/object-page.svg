@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img"
+     aria-label="Schematic of the purchase requisition object page">
+  <style>
+    .f { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .h { font-size: 12px; font-weight: 600; fill: #556B82; }
+    .c { font-size: 13px; fill: #1D2D3E; }
+    .m { font-size: 13px; fill: #556B82; }
+    .n { font-size: 13px; fill: #1D2D3E; text-anchor: end; }
+    .t { font-size: 15px; font-weight: 600; fill: #FFFFFF; }
+    .kpi { font-size: 22px; font-weight: 600; }
+    .kl { font-size: 11px; fill: #556B82; }
+    .sec { font-size: 14px; font-weight: 600; fill: #1D2D3E; }
+    .btn { font-size: 12px; font-weight: 600; fill: #0070F2; }
+    .lbl { font-size: 11px; fill: #556B82; }
+  </style>
+
+  <rect width="960" height="520" fill="#F5F6F7"/>
+  <rect width="960" height="44" fill="#354A5F"/>
+  <text class="f t" x="20" y="28">Microcontrollers series demand 2027</text>
+  <text class="f" x="880" y="28" font-size="12" fill="#C2D2E0">carl</text>
+
+  <!-- object page header -->
+  <rect x="16" y="60" width="928" height="124" rx="8" fill="#FFFFFF" stroke="#D9DEE3"/>
+  <text class="f" x="32" y="86" font-size="17" font-weight="600" fill="#1D2D3E">Microcontrollers series demand 2027</text>
+  <text class="f m" x="32" y="106">PR-2026-000002 &#183; Purchase Requisition</text>
+
+  <text class="f btn" x="700" y="86">Approve</text>
+  <text class="f btn" x="770" y="86">Reject</text>
+  <text class="f btn" x="830" y="86">Withdraw</text>
+
+  <!-- KPI 1 -->
+  <text class="f kl" x="32" y="136">Total Net Value</text>
+  <text class="f kpi" x="32" y="162" fill="#1D2D3E">27,150.00</text>
+  <text class="f kl" x="150" y="162">EUR</text>
+  <line x1="200" y1="124" x2="200" y2="170" stroke="#EAECEE"/>
+
+  <!-- KPI 2 -->
+  <text class="f kl" x="224" y="136">Status</text>
+  <text class="f kpi" x="224" y="162" fill="#E76500">In Approval</text>
+  <line x1="392" y1="124" x2="392" y2="170" stroke="#EAECEE"/>
+
+  <!-- KPI 3 -->
+  <text class="f kl" x="416" y="136">Supplier Risk Class</text>
+  <text class="f kpi" x="416" y="162" fill="#BB0000">C</text>
+  <text class="f kl" x="438" y="162">high</text>
+  <line x1="540" y1="124" x2="540" y2="170" stroke="#EAECEE"/>
+
+  <!-- KPI 4: approval progress -->
+  <text class="f kl" x="564" y="136">Approved Levels</text>
+  <text class="f kpi" x="564" y="162" fill="#1D2D3E">1</text>
+  <text class="f kl" x="584" y="162">of 3</text>
+  <rect x="620" y="150" width="120" height="8" rx="4" fill="#EAECEE"/>
+  <rect x="620" y="150" width="40" height="8" rx="4" fill="#0070F2"/>
+
+  <!-- section tabs -->
+  <text class="f sec" x="32" y="212">General Information</text>
+  <text class="f m" x="190" y="212">Items</text>
+  <text class="f m" x="250" y="212">Approval Chain</text>
+  <line x1="32" y1="220" x2="168" y2="220" stroke="#0070F2" stroke-width="2"/>
+
+  <!-- items table -->
+  <rect x="16" y="232" width="928" height="130" rx="8" fill="#FFFFFF" stroke="#D9DEE3"/>
+  <text class="f sec" x="32" y="256">Items (2)</text>
+  <line x1="16" y1="266" x2="944" y2="266" stroke="#D9DEE3"/>
+  <text class="f h" x="32" y="284">Item</text>
+  <text class="f h" x="86" y="284">Description</text>
+  <text class="f h" x="330" y="284" text-anchor="end">Quantity</text>
+  <text class="f h" x="440" y="284" text-anchor="end">Unit Price</text>
+  <text class="f h" x="560" y="284" text-anchor="end">Net Amount</text>
+  <text class="f h" x="600" y="284">Supplier</text>
+  <text class="f h" x="830" y="284">Delivery</text>
+  <line x1="16" y1="292" x2="944" y2="292" stroke="#D9DEE3"/>
+
+  <text class="f c" x="32" y="314">10</text>
+  <text class="f c" x="86" y="314">Microcontroller 32bit 168MHz</text>
+  <text class="f n" x="330" y="314">3,000 EA</text>
+  <text class="f n" x="440" y="314">6.75</text>
+  <text class="f n" x="560" y="314">20,250.00</text>
+  <text class="f m" x="600" y="314">Shenzhen Ruiyang Electronics Co.</text>
+  <text class="f m" x="830" y="314">2027-02-01</text>
+  <line x1="16" y1="326" x2="944" y2="326" stroke="#EAECEE"/>
+
+  <text class="f c" x="32" y="348">20</text>
+  <text class="f c" x="86" y="348">Industrial PCB 4-layer</text>
+  <text class="f n" x="330" y="348">200 EA</text>
+  <text class="f n" x="440" y="348">34.50</text>
+  <text class="f n" x="560" y="348">6,900.00</text>
+  <text class="f m" x="600" y="348">Shenzhen Ruiyang Electronics Co.</text>
+  <text class="f m" x="830" y="348">2027-02-01</text>
+
+  <!-- approval chain -->
+  <rect x="16" y="374" width="928" height="110" rx="8" fill="#FFFFFF" stroke="#D9DEE3"/>
+  <text class="f sec" x="32" y="398">Approval Chain (3)</text>
+  <line x1="16" y1="408" x2="944" y2="408" stroke="#D9DEE3"/>
+
+  <circle cx="40" cy="428" r="5" fill="#36A41D"/>
+  <text class="f c" x="56" y="432">L1 — Team Lead</text>
+  <text class="f" x="200" y="432" font-size="13" font-weight="600" fill="#256F3A">Approved</text>
+  <text class="f m" x="300" y="432">tom &#183; 2026-09-10</text>
+  <text class="f m" x="470" y="432">“Demand confirmed with production planning.”</text>
+
+  <circle cx="40" cy="452" r="5" fill="#E76500"/>
+  <text class="f c" x="56" y="456">L2 — Department Head</text>
+  <text class="f" x="200" y="456" font-size="13" font-weight="600" fill="#E76500">Pending</text>
+
+  <circle cx="40" cy="476" r="5" fill="#E76500"/>
+  <text class="f c" x="56" y="480">L3 — CFO</text>
+  <text class="f" x="200" y="480" font-size="13" font-weight="600" fill="#E76500">Pending</text>
+
+  <text class="f lbl" x="16" y="506">The full chain is materialised on submit, so the path is visible up front — three levels here, because 27,150 EUR from a risk class C supplier.</text>
+</svg>

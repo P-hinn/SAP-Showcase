@@ -1,14 +1,34 @@
-'use strict';
+import * as policy from '../srv/lib/approval-policy';
+import type {
+  ApprovalLevel,
+  Finding,
+  MessageCode,
+  Status,
+  ValidatableCostCenter,
+  ValidatableItem,
+  ValidatableRequisition
+} from '../srv/lib/approval-policy';
+import type { RiskClass } from '../srv/lib/risk-scoring';
 
-const policy = require('../srv/lib/approval-policy');
 const { STATUS, MSG } = policy;
 
-const codesOf = (findings) => findings.map((finding) => finding.code);
+const codesOf = (findings: readonly Finding[]): MessageCode[] => findings.map((finding) => finding.code);
+
+/**
+ * First finding, asserting that there is one.
+ * `noUncheckedIndexedAccess` is on, so `findings[0]` is possibly undefined -
+ * and a bare `!` would turn "no finding was produced" into a confusing
+ * TypeError instead of a readable failure.
+ */
+function first(findings: readonly Finding[]): Finding {
+  expect(findings.length).toBeGreaterThan(0);
+  return findings[0] as Finding;
+}
 
 describe('approval policy', () => {
 
   describe('determineRequiredLevel', () => {
-    it.each([
+    it.each<[number, ApprovalLevel, ApprovalLevel, ApprovalLevel]>([
       // value      A    B    C
       [0, 1, 1, 2],
       [4999.99, 1, 1, 2],
@@ -29,6 +49,16 @@ describe('approval policy', () => {
         .toBe(policy.determineRequiredLevel({ totalValue: 10000, riskClass: 'B' }));
     });
 
+    it('accepts the decimal string a database column yields', () => {
+      expect(policy.determineRequiredLevel({ totalValue: '25000.00', riskClass: 'A' })).toBe(2);
+      expect(policy.determineRequiredLevel({ totalValue: '24999.99', riskClass: 'A' })).toBe(1);
+    });
+
+    it('treats an unusable value as zero rather than guessing', () => {
+      expect(policy.determineRequiredLevel({ totalValue: null, riskClass: 'A' })).toBe(1);
+      expect(policy.determineRequiredLevel({ totalValue: 'n/a', riskClass: 'C' })).toBe(2);
+    });
+
     it('is never cheaper for a riskier supplier', () => {
       for (const value of [0, 4999, 5000, 24999, 25000, 99999, 100000, 250000]) {
         const a = policy.determineRequiredLevel({ totalValue: value, riskClass: 'A' });
@@ -40,7 +70,7 @@ describe('approval policy', () => {
     });
 
     it('is monotonic in the requisition value', () => {
-      for (const riskClass of ['A', 'B', 'C']) {
+      for (const riskClass of ['A', 'B', 'C'] as RiskClass[]) {
         let previous = 0;
         for (const value of [0, 4999, 5000, 24999, 25000, 99999, 100000, 250000]) {
           const level = policy.determineRequiredLevel({ totalValue: value, riskClass });
@@ -71,7 +101,7 @@ describe('approval policy', () => {
   });
 
   describe('lifecycle', () => {
-    it.each([
+    it.each<[policy.LifecycleAction, Status, Status]>([
       ['submit', STATUS.DRAFT, STATUS.IN_APPROVAL],
       ['approve', STATUS.IN_APPROVAL, STATUS.IN_APPROVAL],
       ['reject', STATUS.IN_APPROVAL, STATUS.REJECTED],
@@ -83,7 +113,7 @@ describe('approval policy', () => {
       expect(policy.targetStatus(action, from)).toBe(to);
     });
 
-    it.each([
+    it.each<[policy.LifecycleAction, Status]>([
       ['submit', STATUS.IN_APPROVAL],
       ['submit', STATUS.APPROVED],
       ['approve', STATUS.DRAFT],
@@ -101,7 +131,7 @@ describe('approval policy', () => {
     });
 
     it('is a closed system - a closed requisition is a dead end', () => {
-      for (const action of Object.keys(policy.TRANSITIONS)) {
+      for (const action of Object.keys(policy.TRANSITIONS) as policy.LifecycleAction[]) {
         expect(policy.canPerform(action, STATUS.CLOSED)).toBe(false);
       }
     });
@@ -109,7 +139,7 @@ describe('approval policy', () => {
 
   describe('validateForSubmission', () => {
     const today = '2026-09-17';
-    const validItem = {
+    const validItem: ValidatableItem = {
       itemNumber: 10,
       quantity: 10,
       unitPrice: 100,
@@ -117,14 +147,41 @@ describe('approval policy', () => {
       deliveryDate: '2026-12-01',
       supplier: { name: 'Nordwind Stahl GmbH', isBlocked: false }
     };
-    const validHeader = { title: 'Steel plates', costCenter_ID: 'cc-1' };
-    const costCenter = { costCenterCode: '1000-4711', annualBudget: 100000, consumedBudget: 10000 };
+    const validHeader: ValidatableRequisition = { title: 'Steel plates', costCenter_ID: 'cc-1' };
+    const costCenter: ValidatableCostCenter = {
+      costCenterCode: '1000-4711',
+      annualBudget: 100000,
+      consumedBudget: 10000
+    };
+    const funded = (): ValidatableCostCenter => costCenter;
 
     it('accepts a valid requisition', () => {
       const findings = policy.validateForSubmission({
         requisition: validHeader, items: [validItem], costCenter, today
       });
       expect(findings).toEqual([]);
+    });
+
+    it('survives a missing item list', () => {
+      const findings = policy.validateForSubmission({
+        requisition: validHeader,
+        items: null,
+        costCenter: funded(),
+        today
+      });
+      expect(codesOf(findings)).toContain(MSG.NO_ITEMS);
+    });
+
+    it('survives a missing requisition', () => {
+      const findings = policy.validateForSubmission({
+        requisition: null,
+        items: [validItem],
+        costCenter: funded(),
+        today
+      });
+      expect(codesOf(findings)).toEqual(
+        expect.arrayContaining([MSG.TITLE_MISSING, MSG.COST_CENTER_MISSING])
+      );
     });
 
     it('requires at least one item', () => {
@@ -134,7 +191,7 @@ describe('approval policy', () => {
       expect(codesOf(findings)).toContain(MSG.NO_ITEMS);
     });
 
-    it.each([
+    it.each<[string, Partial<ValidatableItem>, MessageCode]>([
       ['a zero quantity', { quantity: 0 }, MSG.QUANTITY_NOT_POSITIVE],
       ['a negative quantity', { quantity: -5 }, MSG.QUANTITY_NOT_POSITIVE],
       ['a negative price', { unitPrice: -1 }, MSG.PRICE_NEGATIVE],
@@ -183,7 +240,7 @@ describe('approval policy', () => {
       const findings = policy.validateForSubmission({
         requisition: validHeader, items: [{ ...validItem, quantity: 0 }], costCenter, today
       });
-      expect(findings[0].target).toBe('items(0)/quantity');
+      expect(first(findings).target).toBe('items(0)/quantity');
     });
 
     describe('budget check', () => {
@@ -195,8 +252,8 @@ describe('approval policy', () => {
           today
         });
         expect(codesOf(findings)).toContain(MSG.BUDGET_EXCEEDED);
-        expect(findings[0].message).toContain('90000.00');
-        expect(findings[0].message).toContain('95000.00');
+        expect(first(findings).message).toContain('90000.00');
+        expect(first(findings).message).toContain('95000.00');
       });
 
       it('allows a requisition that uses the remaining budget to the last cent', () => {
@@ -204,6 +261,26 @@ describe('approval policy', () => {
           requisition: validHeader,
           items: [{ ...validItem, netAmount: 90000 }],
           costCenter: { costCenterCode: '2000-5001', annualBudget: 100000, consumedBudget: 10000 },
+          today
+        });
+        expect(codesOf(findings)).not.toContain(MSG.BUDGET_EXCEEDED);
+      });
+
+      it('treats a cost center without consumption as fully available', () => {
+        const findings = policy.validateForSubmission({
+          requisition: validHeader,
+          items: [{ ...validItem, netAmount: 100000 }],
+          costCenter: { costCenterCode: '3000-6100', annualBudget: 100000 },
+          today
+        });
+        expect(codesOf(findings)).not.toContain(MSG.BUDGET_EXCEEDED);
+      });
+
+      it('skips the check when no cost center was resolved at all', () => {
+        const findings = policy.validateForSubmission({
+          requisition: validHeader,
+          items: [{ ...validItem, netAmount: 1e9 }],
+          costCenter: null,
           today
         });
         expect(codesOf(findings)).not.toContain(MSG.BUDGET_EXCEEDED);
@@ -222,7 +299,7 @@ describe('approval policy', () => {
   });
 
   describe('validateDecision', () => {
-    const inApproval = {
+    const inApproval: ValidatableRequisition = {
       status_code: STATUS.IN_APPROVAL,
       requester: 'rita',
       createdBy: 'rita',
@@ -313,7 +390,7 @@ describe('approval policy', () => {
 
 describe('validateItem', () => {
   const today = '2026-09-17';
-  const item = {
+  const item: ValidatableItem = {
     itemNumber: 10,
     quantity: 10,
     unitPrice: 100,
@@ -339,7 +416,7 @@ describe('validateItem', () => {
 
   it('numbers the target by position when the item has no number yet', () => {
     const findings = policy.validateItem({ item: { ...item, itemNumber: undefined, quantity: 0 }, index: 2, today });
-    expect(findings[0].target).toBe('items(2)/quantity');
-    expect(findings[0].message).toContain('Item 30');
+    expect(first(findings).target).toBe('items(2)/quantity');
+    expect(first(findings).message).toContain('Item 30');
   });
 });

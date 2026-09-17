@@ -1,11 +1,9 @@
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const fs = require('fs');
-const path = require('path');
-
-const { lineAmount, sumAmounts } = require('../srv/lib/money');
-const { assessSupplier, worstRiskClass } = require('../srv/lib/risk-scoring');
-const { determineRequiredLevel, buildApprovalChain } = require('../srv/lib/approval-policy');
+import { lineAmount, sumAmounts } from '../srv/lib/money';
+import { assessSupplier, worstRiskClass } from '../srv/lib/risk-scoring';
+import { determineRequiredLevel, buildApprovalChain } from '../srv/lib/approval-policy';
 
 /**
  * The sample data in db/data is not decoration - the demo story depends on the
@@ -17,11 +15,14 @@ const { determineRequiredLevel, buildApprovalChain } = require('../srv/lib/appro
 
 const DATA_DIR = path.join(__dirname, '..', 'db', 'data');
 
+/** One fixture row: every column arrives as a string, as CSV has no types. */
+type CsvRow = Record<string, string>;
+
 /** Minimal CSV reader for the semicolon separated fixture format. */
-function readCsv(fileName) {
+function readCsv(fileName: string): CsvRow[] {
   const raw = fs.readFileSync(path.join(DATA_DIR, fileName), 'utf8').trim();
   const [header, ...lines] = raw.split('\n');
-  const columns = header.split(';');
+  const columns = (header ?? '').split(';');
   return lines.map((line) => {
     const values = line.split(';');
     return Object.fromEntries(columns.map((column, index) => [column, values[index] ?? '']));
@@ -38,10 +39,11 @@ const approvalSteps = readCsv('acme.procurement-ApprovalSteps.csv');
 const ratingPoints = new Map(ratings.map((row) => [row.code, Number(row.riskPoints)]));
 const countryPoints = new Map(countryRisks.map((row) => [row.code, Number(row.riskPoints)]));
 const supplierById = new Map(suppliers.map((row) => [row.ID, row]));
-const itemsByRequisition = items.reduce((map, item) => {
-  const list = map.get(item.requisition_ID) || [];
+const itemsByRequisition = items.reduce<Map<string, CsvRow[]>>((map, item) => {
+  const key = item.requisition_ID ?? '';
+  const list = map.get(key) ?? [];
   list.push(item);
-  map.set(item.requisition_ID, list);
+  map.set(key, list);
   return map;
 }, new Map());
 
@@ -90,7 +92,7 @@ describe('sample data', () => {
     it.each(requisitions.map((req) => [req.requisitionNumber || req.title, req]))(
       '%s has consistent amounts and a correctly derived approval level',
       (_label, requisition) => {
-        const own = itemsByRequisition.get(requisition.ID) || [];
+        const own = itemsByRequisition.get(requisition.ID ?? '') ?? [];
         expect(own.length).toBeGreaterThan(0);
 
         for (const item of own) {
@@ -101,7 +103,7 @@ describe('sample data', () => {
         expect(Number(requisition.totalValue)).toBe(totalValue);
 
         const riskClass = worstRiskClass(
-          own.map((item) => supplierById.get(item.supplier_ID)?.riskClass_code)
+          own.map((item) => supplierById.get(item.supplier_ID ?? '')?.riskClass_code)
         );
         expect(requisition.supplierRiskClass_code).toBe(riskClass);
 

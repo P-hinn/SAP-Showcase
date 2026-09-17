@@ -24,7 +24,7 @@ identical so the two can be compared line by line.
 | **Data access** | Direct. `I_Supplier` is a join away. | Needs replication or a remote service per read. |
 | **Transactional integrity** | One LUW with the S/4 document. | Two systems, so eventual consistency and compensation. |
 | **Release coupling** | Follows the S/4 upgrade cycle. | Independent. Deploy on a Tuesday afternoon. |
-| **Skills needed** | ABAP Cloud, RAP, ADT. | Node.js or Java, CDS, Cloud Foundry, CI/CD. |
+| **Skills needed** | ABAP Cloud, RAP, ADT. | TypeScript or Java, CDS, Cloud Foundry, CI/CD. |
 | **Test feedback loop** | Minutes. Needs a system. | Seconds. `npm test` on a laptop. |
 | **Scaling** | The application server's. | Independent, elastic. |
 | **Non-SAP consumers** | Possible, but the S/4 system is in the path. | Natural. |

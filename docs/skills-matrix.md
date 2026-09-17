@@ -32,10 +32,17 @@ thing. Every row points at code, not at a claim.
 | ABAP Unit, 51 tests | `*.clas.testclasses.abap` |
 | Clean ABAP style | `RETURNING VALUE(result)`, no Hungarian notation, expressions over statements |
 
-## SAP CAP / BTP
+## SAP CAP / BTP (TypeScript)
 
 | Skill | Where |
 |---|---|
+| CAP in TypeScript end to end | `cap/srv/**/*.ts`, `cap/tsconfig.json` |
+| Strict compiler settings incl. `noUncheckedIndexedAccess` | `cap/tsconfig.json` |
+| Types generated from the CDS model | `@cap-js/cds-typer`, `npm run types` |
+| Domain types instead of loose objects | `RiskClass`, `Status`, `ApprovalLevel`, `Finding`, `Amount` |
+| Type guards over casts | `isRiskClass`, `isLifecycleAction` in `srv/lib` |
+| Type aware linting | `cap/eslint.config.ts` (`recommendedTypeChecked`) |
+| Separate build tsconfig emitting to `gen/` | `cap/tsconfig.build.json` |
 | CDS domain modelling | `cap/db/schema.cds` |
 | Code lists, `@sap/cds/common` | `cap/db/code-lists.cds` |
 | Compositions, managed & unmanaged associations | `PurchaseRequisitions.items`, `Suppliers.countryRisk` |
@@ -44,7 +51,7 @@ thing. Every row points at code, not at a claim.
 | Declarative authorisation | `@requires`, `@restrict` incl. an action grant |
 | Instance based authorisation | `MyRequisitions` with `where: 'requester = $user'` |
 | Analytical CDS views | `cap/srv/analytics-service.cds` |
-| Custom handlers, determinations | `cap/srv/procurement-service.js` |
+| Custom handlers, determinations | `cap/srv/procurement-service.ts` |
 | Draft event handling | `before(['NEW','PATCH'], ...drafts)` |
 | CQL with expands | `assessSupplierById` - one query, two expands |
 | Virtual elements | `riskScoreCriticality` + the before-READ column injection |
@@ -52,8 +59,8 @@ thing. Every row points at code, not at a claim.
 | Side effects, value helps, criticality | same files |
 | Fiori Elements app scaffolding | `cap/app/*/webapp/` |
 | MTA and XSUAA descriptors | `cap/mta.yaml`, `cap/xs-security.json` |
-| Jest unit and integration tests, 163 | `cap/test/` |
-| ESLint flat config | `cap/eslint.config.js` |
+| Jest + ts-jest, 174 type checked tests | `cap/test/` |
+| ESLint flat config, TypeScript | `cap/eslint.config.ts` |
 
 ## Engineering practice
 
@@ -61,9 +68,9 @@ thing. Every row points at code, not at a claim.
 |---|---|
 | Rules separated from framework plumbing | [ADR 0002](adr/0002-rules-outside-the-framework.md) |
 | Architecture decisions written down | [`docs/adr/`](adr/) |
-| Property based assertions (monotonicity, ordering) | `approval-policy.test.js`, `ltcl_approval_matrix` |
-| Self validating fixtures | `cap/test/fixtures.test.js` recomputes every derived value in `db/data` |
-| Coverage floor on the rule modules | `cap/jest.config.js` |
+| Property based assertions (monotonicity, ordering) | `approval-policy.test.ts`, `ltcl_approval_matrix` |
+| Self validating fixtures | `cap/test/fixtures.test.ts` recomputes every derived value in `db/data` |
+| Coverage floor on the rule modules | `cap/jest.config.ts` |
 | CI on every push | `.github/workflows/ci.yml` |
 | Reproducible demo evidence | [`demo-walkthrough.md`](demo-walkthrough.md), recorded against the running service |
 | Known limitations stated, not hidden | [ADR 0005](adr/0005-number-assignment.md), `abap/README.md` |

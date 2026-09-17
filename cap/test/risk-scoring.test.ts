@@ -1,16 +1,17 @@
-'use strict';
-
-const {
+import {
   WEIGHTS,
   assessSupplier,
   deriveRiskClass,
   worstRiskClass,
   QUALITY_INCIDENTS_AT_MAX,
-  BLOCKED_SCORE
-} = require('../srv/lib/risk-scoring');
+  BLOCKED_SCORE,
+  DEFAULTS,
+  type RiskClass,
+  type SupplierRiskProfile
+} from '../srv/lib/risk-scoring';
 
 /** A supplier with no concerns at all - the baseline for the weight tests. */
-const perfect = {
+const perfect: SupplierRiskProfile = {
   financialRatingPoints: 0,
   countryRiskPoints: 0,
   onTimeDeliveryRate: 1,
@@ -44,7 +45,7 @@ describe('risk scoring', () => {
   });
 
   describe('indicator weights', () => {
-    it.each([
+    it.each<[string, SupplierRiskProfile, number]>([
       ['financialRating', { ...perfect, financialRatingPoints: 100 }, 40],
       ['onTimeDelivery', { ...perfect, onTimeDeliveryRate: 0 }, 25],
       ['qualityIncidents', { ...perfect, qualityIncidents12M: QUALITY_INCIDENTS_AT_MAX }, 20],
@@ -59,6 +60,33 @@ describe('risk scoring', () => {
     const atMax = assessSupplier({ ...perfect, qualityIncidents12M: QUALITY_INCIDENTS_AT_MAX });
     const wayOver = assessSupplier({ ...perfect, qualityIncidents12M: 500 });
     expect(wayOver.score).toBe(atMax.score);
+  });
+
+  describe('values as the database hands them over', () => {
+    // Decimal columns come back as strings from several database drivers, so
+    // the scoring has to cope with '0.8400' as well as with 0.84.
+    it('accepts a decimal string for the delivery rate', () => {
+      const asString = assessSupplier({ ...perfect, onTimeDeliveryRate: '0.5000' });
+      const asNumber = assessSupplier({ ...perfect, onTimeDeliveryRate: 0.5 });
+      expect(asString.score).toBe(asNumber.score);
+      expect(asString.score).toBe(13); // 0.25 * 50 = 12.5, rounded
+    });
+
+    it('falls back to the documented default for an unparsable delivery rate', () => {
+      const broken = assessSupplier({ ...perfect, onTimeDeliveryRate: 'n/a' });
+      const defaulted = assessSupplier({ ...perfect, onTimeDeliveryRate: DEFAULTS.onTimeDeliveryRate });
+      expect(broken.score).toBe(defaulted.score);
+    });
+
+    it('clamps indicators that arrive out of range', () => {
+      expect(assessSupplier({ ...perfect, financialRatingPoints: 150 }).score).toBe(40);
+      expect(assessSupplier({ ...perfect, countryRiskPoints: -20 }).score).toBe(0);
+      expect(assessSupplier({ ...perfect, onTimeDeliveryRate: 5 }).score).toBe(0);
+    });
+
+    it('treats a NaN incident count as none', () => {
+      expect(assessSupplier({ ...perfect, qualityIncidents12M: Number.NaN }).score).toBe(0);
+    });
   });
 
   describe('missing data', () => {
@@ -89,7 +117,7 @@ describe('risk scoring', () => {
   });
 
   describe('deriveRiskClass', () => {
-    it.each([
+    it.each<[number, RiskClass]>([
       [0, 'A'], [24, 'A'],
       [25, 'B'], [54, 'B'],
       [55, 'C'], [100, 'C']
@@ -104,7 +132,7 @@ describe('risk scoring', () => {
   });
 
   describe('worstRiskClass', () => {
-    it.each([
+    it.each<[Array<string | null | undefined>, RiskClass]>([
       [['A', 'B', 'C'], 'C'],
       [['A', 'A'], 'A'],
       [['B', 'A'], 'B'],
@@ -116,6 +144,11 @@ describe('risk scoring', () => {
     it('returns null when nothing is known', () => {
       expect(worstRiskClass([])).toBeNull();
       expect(worstRiskClass([null, undefined])).toBeNull();
+      expect(worstRiskClass(['not a risk class'])).toBeNull();
+    });
+
+    it('survives a missing list', () => {
+      expect(worstRiskClass(undefined as unknown as string[])).toBeNull();
     });
   });
 

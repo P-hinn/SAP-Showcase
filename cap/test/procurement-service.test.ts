@@ -1,6 +1,4 @@
-'use strict';
-
-const cds = require('@sap/cds');
+import cds from '@sap/cds';
 
 const { expect, GET, POST, PATCH, data } = cds.test(__dirname + '/..');
 
@@ -30,41 +28,63 @@ const SUPPLIER = {
 const COST_CENTER = 'cc000001-0000-4000-8000-000000000001';
 const MATERIAL = 'a0000001-0000-4000-8000-000000000001';
 
-const active = (id) => `PurchaseRequisitions(ID=${id},IsActiveEntity=true)`;
-const action = (id, name) => `/procurement/${active(id)}/ProcurementService.${name}`;
+/**
+ * Fully qualified entity names for the direct database access these tests use
+ * to arrange state. CAP accepts the string form everywhere a definition is
+ * expected, and unlike `cds.entities(...)[name]` it is not `possibly
+ * undefined` - which keeps the arrange steps free of non-null assertions.
+ */
+const HEADERS = 'acme.procurement.PurchaseRequisitions';
+const ITEMS = 'acme.procurement.PurchaseRequisitionItems';
+const SUPPLIERS = 'acme.procurement.Suppliers';
+
+const active = (id: string): string => `PurchaseRequisitions(ID=${id},IsActiveEntity=true)`;
+const action = (id: string, name: string): string => `/procurement/${active(id)}/ProcurementService.${name}`;
 
 /** An ISO date safely in the future, so the fixtures do not expire. */
-function futureDate(days = 90) {
+function futureDate(days = 90): string {
   const date = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
   return date.toISOString().slice(0, 10);
 }
 
 /** Moves all delivery dates of a requisition into the future. */
-async function makeDeliverable(requisitionId) {
-  const { PurchaseRequisitionItems } = cds.entities('acme.procurement');
-  await UPDATE(PurchaseRequisitionItems)
+async function makeDeliverable(requisitionId: string): Promise<void> {
+  await UPDATE(ITEMS)
     .set({ deliveryDate: futureDate() })
     .where({ requisition_ID: requisitionId });
 }
 
+/** The error envelope OData returns: one error, or one with nested details. */
+interface ODataError {
+  response?: {
+    status?: number;
+    data?: { error?: { code?: string; details?: Array<{ code?: string }> } };
+  };
+}
+
 /** Error codes of a failed OData request, flattened over single and multi errors. */
-function errorCodes(error) {
+function errorCodes(error: ODataError): Array<string | undefined> {
   const payload = error.response?.data?.error;
   if (!payload) return [];                       // e.g. a bare 401 without a body
   return payload.details ? payload.details.map((detail) => detail.code) : [payload.code];
 }
 
-/** Runs a request that is expected to fail and returns its error codes. */
-async function expectFailure(request) {
+/** Runs a request that is expected to fail and returns its status and codes. */
+async function expectFailure(
+  request: Promise<unknown>
+): Promise<{ status: number | undefined; codes: Array<string | undefined> }> {
   try {
     await request;
   } catch (error) {
-    return { status: error.response?.status, codes: errorCodes(error) };
+    const odata = error as ODataError;
+    return { status: odata.response?.status, codes: errorCodes(odata) };
   }
   throw new Error('Expected the request to fail, but it succeeded.');
 }
 
-beforeEach(data.reset);
+// Wrapped rather than passed by reference: `data.reset` reads `this`, and
+// handing the bare method to Jest would call it unbound.
+beforeEach(() => data.reset());
 
 describe('ProcurementService', () => {
 
@@ -83,7 +103,7 @@ describe('ProcurementService', () => {
     it('limits MyRequisitions to the requisitions of the calling user', async () => {
       const { data: body } = await GET('/procurement/MyRequisitions', AS.rita);
       expect(body.value.length).to.be.greaterThan(0);
-      expect(body.value.every((row) => row.requester === 'rita')).to.be.true;
+      expect(body.value.every((row: { requester: string }) => row.requester === 'rita')).to.be.true;
     });
 
     it('lets a procurement admin see everything through MyRequisitions', async () => {
@@ -137,9 +157,8 @@ describe('ProcurementService', () => {
     });
 
     it('refuses a requisition with a blocked supplier', async () => {
-      const { PurchaseRequisitionItems } = cds.entities('acme.procurement');
       await makeDeliverable(PR.draftSmall);
-      await UPDATE(PurchaseRequisitionItems)
+      await UPDATE(ITEMS)
         .set({ supplier_ID: SUPPLIER.blocked })
         .where({ requisition_ID: PR.draftSmall });
 
@@ -148,8 +167,7 @@ describe('ProcurementService', () => {
     });
 
     it('refuses a delivery date in the past', async () => {
-      const { PurchaseRequisitionItems } = cds.entities('acme.procurement');
-      await UPDATE(PurchaseRequisitionItems)
+      await UPDATE(ITEMS)
         .set({ deliveryDate: '2020-01-01' })
         .where({ requisition_ID: PR.draftSmall });
 
@@ -158,8 +176,7 @@ describe('ProcurementService', () => {
     });
 
     it('reports every problem of a broken requisition at once', async () => {
-      const { PurchaseRequisitionItems } = cds.entities('acme.procurement');
-      await UPDATE(PurchaseRequisitionItems)
+      await UPDATE(ITEMS)
         .set({ deliveryDate: '2020-01-01', quantity: 0, supplier_ID: SUPPLIER.blocked })
         .where({ requisition_ID: PR.draftSmall });
 
@@ -180,11 +197,10 @@ describe('ProcurementService', () => {
     });
 
     it('recalculates the approval level from the current item data', async () => {
-      const { PurchaseRequisitionItems } = cds.entities('acme.procurement');
       await makeDeliverable(PR.draftSmall);
       // 4.800 EUR at risk class A needs L1. Raising the price past 100.000 EUR
       // must push it to L3 without anyone touching the header.
-      await UPDATE(PurchaseRequisitionItems)
+      await UPDATE(ITEMS)
         .set({ unitPrice: 60, netAmount: 120000 })
         .where({ requisition_ID: PR.draftSmall });
 
@@ -238,7 +254,8 @@ describe('ProcurementService', () => {
       await POST(action(PR.inApproval, 'approve'), {}, AS.carl);
       const after = await GET("/analytics/CostCenterBudget?$filter=costCenterCode eq '1000-4712'", AS.carl);
 
-      const consumed = (response) => Number(response.data.value[0].consumedBudget);
+      const consumed = (response: { data: { value: Array<{ consumedBudget: string }> } }): number =>
+        Number(response.data.value[0]!.consumedBudget);
       expect(consumed(after) - consumed(before)).to.equal(27150);
     });
 
@@ -261,7 +278,7 @@ describe('ProcurementService', () => {
       const { data: steps } = await GET(
         `/procurement/ApprovalSteps?$filter=requisition_ID eq ${PR.inApproval}&$orderby=level_code`, AS.dana
       );
-      expect(steps.value.map((step) => step.decision_code)).to.eql(['APPR', 'REJE', 'SKIP']);
+      expect(steps.value.map((step: { decision_code: string }) => step.decision_code)).to.eql(['APPR', 'REJE', 'SKIP']);
     });
 
     it('requires a reason', async () => {
@@ -314,8 +331,7 @@ describe('ProcurementService', () => {
 
   describe('supplier risk', () => {
     it('recalculates a single supplier after a master data change', async () => {
-      const { Suppliers } = cds.entities('acme.procurement');
-      await UPDATE(Suppliers)
+      await UPDATE(SUPPLIERS)
         .set({ financialRating_code: 'D', onTimeDeliveryRate: 0.3, qualityIncidents12M: 12, isoCertified: false })
         .where({ ID: SUPPLIER.lowRisk });
 
@@ -329,8 +345,7 @@ describe('ProcurementService', () => {
     });
 
     it('reports how many suppliers changed in the bulk run', async () => {
-      const { Suppliers } = cds.entities('acme.procurement');
-      await UPDATE(Suppliers).set({ riskScore: 0, riskClass_code: 'A' }).where({ ID: SUPPLIER.highRisk });
+      await UPDATE(SUPPLIERS).set({ riskScore: 0, riskClass_code: 'A' }).where({ ID: SUPPLIER.highRisk });
 
       const { data: body } = await POST('/procurement/recalculateAllSupplierRisks', {}, AS.mona);
       expect(body.evaluated).to.equal(8);
@@ -352,14 +367,13 @@ describe('ProcurementService', () => {
 
   describe('determinations', () => {
     it('numbers items, prices them and derives the header from the items', async () => {
-      const { PurchaseRequisitions, PurchaseRequisitionItems } = cds.entities('acme.procurement');
       const id = 'aaaaaaaa-0000-4000-8000-00000000000a';
 
-      await INSERT.into(PurchaseRequisitions).entries({
+      await INSERT.into(HEADERS).entries({
         ID: id, title: 'Determination test', requester: 'rita',
         costCenter_ID: COST_CENTER, currency_code: 'EUR', status_code: 'DR'
       });
-      await INSERT.into(PurchaseRequisitionItems).entries([
+      await INSERT.into(ITEMS).entries([
         { requisition_ID: id, material_ID: MATERIAL, description: 'A', quantity: 10, unitPrice: 2.5,
           supplier_ID: SUPPLIER.highRisk, deliveryDate: futureDate() },
         { requisition_ID: id, material_ID: MATERIAL, description: 'B', quantity: 3.333, unitPrice: 1.11,
@@ -378,8 +392,8 @@ describe('ProcurementService', () => {
       const { data: items } = await GET(
         `/procurement/PurchaseRequisitionItems?$filter=requisition_ID eq ${id}&$orderby=itemNumber`, AS.rita
       );
-      expect(items.value.map((item) => item.itemNumber)).to.eql([10, 20]);
-      expect(items.value.map((item) => Number(item.netAmount))).to.eql([25, 3.7]);
+      expect(items.value.map((item: { itemNumber: number }) => item.itemNumber)).to.eql([10, 20]);
+      expect(items.value.map((item: { netAmount: string }) => Number(item.netAmount))).to.eql([25, 3.7]);
     });
 
   });
@@ -392,7 +406,7 @@ describe('ProcurementService', () => {
    */
   describe('draft handling', () => {
     const drafts = '/procurement/PurchaseRequisitions';
-    const draft = (id) => `${drafts}(ID=${id},IsActiveEntity=false)`;
+    const draft = (id: string): string => `${drafts}(ID=${id},IsActiveEntity=false)`;
 
     it('walks create -> add item -> activate and derives everything on the way', async () => {
       const { status, data: header } = await POST(drafts, {
@@ -465,22 +479,22 @@ describe('ProcurementService', () => {
     it('aggregates the requested volume per material group in the database', async () => {
       const { status, data: body } = await GET('/analytics/SpendByMaterialGroup', AS.carl);
       expect(status).to.equal(200);
-      const itHardware = body.value.filter((row) => row.materialGroupCode === 'MG-ITHW');
+      const itHardware = body.value.filter((row: { materialGroupCode: string }) => row.materialGroupCode === 'MG-ITHW');
       expect(itHardware.length).to.be.greaterThan(0);
-      expect(itHardware.every((row) => Number(row.requestedVolume) > 0)).to.be.true;
+      expect(itHardware.every((row: { requestedVolume: string }) => Number(row.requestedVolume) > 0)).to.be.true;
     });
 
     it('shows the open exposure only for suppliers with running demand', async () => {
       const { data: body } = await GET('/analytics/SupplierRiskExposure', AS.carl);
       expect(body.value.length).to.be.greaterThan(0);
-      expect(body.value.every((row) => Number(row.openVolume) > 0)).to.be.true;
-      const highRisk = body.value.find((row) => row.riskClass === 'C');
+      expect(body.value.every((row: { openVolume: string }) => Number(row.openVolume) > 0)).to.be.true;
+      const highRisk = body.value.find((row: { riskClass: string }) => row.riskClass === 'C');
       expect(highRisk).to.exist;
     });
 
     it('derives the remaining budget per cost center', async () => {
       const { data: body } = await GET('/analytics/CostCenterBudget', AS.carl);
-      for (const row of body.value) {
+      for (const row of body.value as Array<{ annualBudget: string; consumedBudget: string; remainingBudget: string }>) {
         expect(Number(row.remainingBudget))
           .to.equal(Number(row.annualBudget) - Number(row.consumedBudget));
       }

@@ -1,10 +1,8 @@
-'use strict';
-
-const { toMinorUnits, fromMinorUnits, roundCurrency, lineAmount, sumAmounts } = require('../srv/lib/money');
+import { toMinorUnits, fromMinorUnits, roundCurrency, lineAmount, sumAmounts, type Amount } from '../srv/lib/money';
 
 describe('money', () => {
   describe('toMinorUnits', () => {
-    it.each([
+    it.each<[Amount, number]>([
       [0, 0],
       [1, 100],
       [24999.99, 2499999],
@@ -16,7 +14,7 @@ describe('money', () => {
       expect(toMinorUnits(input)).toBe(expected);
     });
 
-    it.each([null, undefined, NaN, 'not a number'])('treats %p as zero', (input) => {
+    it.each<Amount>([null, undefined, NaN, 'not a number'])('treats %p as zero', (input) => {
       expect(toMinorUnits(input)).toBe(0);
     });
   });

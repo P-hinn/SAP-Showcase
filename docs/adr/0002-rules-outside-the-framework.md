@@ -20,7 +20,7 @@ dependency:
 
 - `ZCL_PR_APPROVAL_POLICY`, `ZCL_PR_RISK_SCORING` - no `SELECT`, no EML,
   no RAP types beyond the DDIC types they need for their signatures.
-- `srv/lib/approval-policy.js`, `srv/lib/risk-scoring.js`, `srv/lib/money.js` -
+- `srv/lib/approval-policy.ts`, `srv/lib/risk-scoring.ts`, `srv/lib/money.ts` -
   no `require('@sap/cds')`.
 
 Handlers read, call a rule, and write. They contain no `IF` that a business

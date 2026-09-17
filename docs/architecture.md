@@ -42,12 +42,12 @@ flowchart TB
     BO --> T1
   end
 
-  subgraph sidebyside["Side-by-side: CAP on BTP (cap/)"]
+  subgraph sidebyside["Side-by-side: CAP + TypeScript on BTP (cap/)"]
     direction TB
     FE2["Fiori Elements<br/>(annotations.cds)"]
     SRV["ProcurementService<br/>OData V4"]
-    HND["Handlers<br/>procurement-service.js"]
-    RULES2["approval-policy.js<br/>risk-scoring.js"]
+    HND["Handlers<br/>procurement-service.ts"]
+    RULES2["approval-policy.ts<br/>risk-scoring.ts"]
     T2[("SAP HANA Cloud<br/>(SQLite locally)")]
     FE2 --> SRV --> HND --> RULES2
     HND --> T2
@@ -68,8 +68,8 @@ both stacks:
 
 | | on-stack | side-by-side |
 |---|---|---|
-| Rules | `ZCL_PR_APPROVAL_POLICY`, `ZCL_PR_RISK_SCORING` | `srv/lib/approval-policy.js`, `srv/lib/risk-scoring.js` |
-| Plumbing | behaviour pool `ZBP_I_PR_REQUISITION` | `srv/procurement-service.js` |
+| Rules | `ZCL_PR_APPROVAL_POLICY`, `ZCL_PR_RISK_SCORING` | `srv/lib/approval-policy.ts`, `srv/lib/risk-scoring.ts` |
+| Plumbing | behaviour pool `ZBP_I_PR_REQUISITION` | `srv/procurement-service.ts` |
 | Tests on the rules | 51 ABAP Unit tests, no database | 101 Jest tests, no database |
 | Tests on the fixtures | - | 24 tests recomputing every derived value in `db/data` |
 | Tests on the plumbing | - | 38 integration tests over HTTP |
@@ -112,7 +112,8 @@ disabled button is a courtesy to the user, never a security boundary.
 
 ## Deployment
 
-The CAP side is a standard MTA: a Node.js module for the service, an HDI
+The CAP side is a standard MTA: a Node.js module running the compiled
+TypeScript service, an HDI
 deployer for the HANA artefacts, XSUAA for authentication.
 [`mta.yaml`](../cap/mta.yaml) and [`xs-security.json`](../cap/xs-security.json)
 are the real descriptors, and `npm run build` produces the `gen/` folders they
