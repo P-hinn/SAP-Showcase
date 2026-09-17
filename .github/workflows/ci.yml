@@ -107,8 +107,13 @@ jobs:
         run: |
           # The two stacks promise the same message numbers. Check it instead
           # of trusting it.
+          policy=../cap/srv/lib/approval-policy.ts
+          test -f "$policy" || {
+            echo "::error::$policy not found - the CAP rule module moved and this check was not updated"
+            exit 1
+          }
           abap=$(grep -oP "VALUE '\K0\d{2}(?=',)" src/classes/zcl_pr_approval_policy.clas.abap | sort -u | tr '\n' ' ')
-          cap=$(grep -oP "'PR\K\d{3}(?=')" ../cap/srv/lib/approval-policy.js | sort -u | tr '\n' ' ')
+          cap=$(grep -oP "'PR\K\d{3}(?=')" "$policy" | sort -u | tr '\n' ' ')
           echo "ABAP: $abap"
           echo "CAP : $cap"
           if [ "$abap" != "$cap" ]; then
