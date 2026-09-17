@@ -5,7 +5,9 @@
     "type": "application",
     "title": "{{appTitle}}",
     "description": "{{appDescription}}",
-    "applicationVersion": { "version": "1.0.0" },
+    "applicationVersion": {
+      "version": "1.0.0"
+    },
     "dataSources": {
       "mainService": {
         "uri": "/procurement/",
@@ -18,7 +20,11 @@
   },
   "sap.ui": {
     "technology": "UI5",
-    "deviceTypes": { "desktop": true, "tablet": true, "phone": true }
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    }
   },
   "sap.ui5": {
     "dependencies": {
@@ -30,7 +36,14 @@
     "models": {
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
-        "settings": { "bundleName": "acme.procurement.requisitions.i18n.i18n" }
+        "settings": {
+          "bundleName": "acme.procurement.requisitions.i18n.i18n",
+          "supportedLocales": [
+            "",
+            "de"
+          ],
+          "fallbackLocale": ""
+        }
       },
       "": {
         "dataSource": "mainService",
@@ -42,7 +55,10 @@
         }
       }
     },
-    "contentDensities": { "compact": true, "cozy": true },
+    "contentDensities": {
+      "compact": true,
+      "cozy": true
+    },
     "routing": {
       "routes": [
         {
@@ -70,11 +86,65 @@
             "settings": {
               "contextPath": "/PurchaseRequisitions",
               "variantManagement": "Page",
-              "initialLoad": true,
+              "initialLoad": "Enabled",
               "navigation": {
                 "PurchaseRequisitions": {
-                  "detail": { "route": "PurchaseRequisitionsObjectPage" }
+                  "detail": {
+                    "route": "PurchaseRequisitionsObjectPage"
+                  }
                 }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable",
+                    "enableExport": true
+                  },
+                  "columns": {
+                    "DataFieldForAnnotation::FieldGroup::Identity": {
+                      "width": "18rem"
+                    },
+                    "DataField::requester": {
+                      "width": "7rem"
+                    },
+                    "DataField::costCenter_ID": {
+                      "width": "12rem"
+                    },
+                    "DataField::totalValue": {
+                      "width": "10rem"
+                    },
+                    "DataField::supplierRiskClass_code": {
+                      "width": "10rem"
+                    },
+                    "DataField::requiredApprovalLevel_code": {
+                      "width": "12rem"
+                    },
+                    "DataField::status_code": {
+                      "width": "10rem"
+                    }
+                  }
+                }
+              },
+              "views": {
+                "paths": [
+                  {
+                    "key": "all",
+                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#all"
+                  },
+                  {
+                    "key": "draft",
+                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#draft"
+                  },
+                  {
+                    "key": "inApproval",
+                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#inApproval"
+                  },
+                  {
+                    "key": "done",
+                    "annotationPath": "com.sap.vocabularies.UI.v1.SelectionPresentationVariant#done"
+                  }
+                ],
+                "showCounts": true
               }
             }
           }
@@ -89,7 +159,58 @@
               "editableHeaderContent": true,
               "navigation": {
                 "items": {
-                  "detail": { "route": "ItemObjectPage" }
+                  "detail": {
+                    "route": "ItemObjectPage"
+                  }
+                }
+              },
+              "controlConfiguration": {
+                "items/@com.sap.vocabularies.UI.v1.LineItem": {
+                  "columns": {
+                    "DataField::itemNumber": {
+                      "width": "4rem"
+                    },
+                    "DataField::material_ID": {
+                      "width": "12rem"
+                    },
+                    "DataField::description": {
+                      "width": "12rem"
+                    },
+                    "DataField::quantity": {
+                      "width": "8rem"
+                    },
+                    "DataField::unitPrice": {
+                      "width": "8rem"
+                    },
+                    "DataField::netAmount": {
+                      "width": "9rem"
+                    },
+                    "DataField::supplier_ID": {
+                      "width": "16rem"
+                    },
+                    "DataField::deliveryDate": {
+                      "width": "8rem"
+                    }
+                  }
+                },
+                "approvalSteps/@com.sap.vocabularies.UI.v1.LineItem": {
+                  "columns": {
+                    "DataField::level_code": {
+                      "width": "14rem"
+                    },
+                    "DataField::decision_code": {
+                      "width": "10rem"
+                    },
+                    "DataField::decidedBy": {
+                      "width": "9rem"
+                    },
+                    "DataField::decidedAt": {
+                      "width": "14rem"
+                    },
+                    "DataField::comment": {
+                      "width": "24rem"
+                    }
+                  }
                 }
               }
             }

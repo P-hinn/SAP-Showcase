@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Supplier Risk</title>
+  <title>My Approvals</title>
   <link rel="icon" href="../../shared/logo.svg">
   <link rel="stylesheet" href="../../shared/shell.css">
   <!-- Language and theme have to be decided before UI5 starts. -->
@@ -20,17 +20,17 @@
     data-sap-ui-frame-options="trusted"
     data-sap-ui-flexibility-services='[{"connector": "LocalStorageConnector"}]'
     data-sap-ui-on-init="module:acme/shared/shell"
-    data-sap-ui-resource-roots='{"acme.procurement.suppliers": "./", "acme.shared": "../../shared/"}'>
+    data-sap-ui-resource-roots='{"acme.procurement.approvals": "./", "acme.shared": "../../shared/"}'>
   </script>
 </head>
 <body class="sapUiBody">
-  <div id="acme-shell" data-app="suppliers"></div>
+  <div id="acme-shell" data-app="approvals"></div>
   <div
     class="acme-content"
     data-sap-ui-component
-    data-name="acme.procurement.suppliers"
+    data-name="acme.procurement.approvals"
     data-id="container"
-    data-settings='{"id": "acmeProcurementSuppliers"}'
+    data-settings='{"id": "acmeProcurementApprovals"}'
     data-height="100%">
   </div>
 </body>

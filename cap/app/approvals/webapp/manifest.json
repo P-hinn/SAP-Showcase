@@ -1,7 +1,7 @@
 {
   "_version": "1.59.0",
   "sap.app": {
-    "id": "acme.procurement.suppliers",
+    "id": "acme.procurement.approvals",
     "type": "application",
     "title": "{{appTitle}}",
     "description": "{{appDescription}}",
@@ -37,7 +37,7 @@
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
-          "bundleName": "acme.procurement.suppliers.i18n.i18n",
+          "bundleName": "acme.procurement.approvals.i18n.i18n",
           "supportedLocales": [
             "",
             "de"
@@ -63,76 +63,52 @@
       "routes": [
         {
           "pattern": ":?query:",
-          "name": "SuppliersList",
-          "target": "SuppliersList"
-        },
-        {
-          "pattern": "Suppliers({key}):?query:",
-          "name": "SuppliersObjectPage",
-          "target": "SuppliersObjectPage"
+          "name": "ApprovalsList",
+          "target": "ApprovalsList"
         }
       ],
       "targets": {
-        "SuppliersList": {
+        "ApprovalsList": {
           "type": "Component",
-          "id": "SuppliersList",
+          "id": "ApprovalsList",
           "name": "sap.fe.templates.ListReport",
           "options": {
             "settings": {
-              "contextPath": "/Suppliers",
+              "contextPath": "/MyApprovalTasks",
               "variantManagement": "Page",
               "initialLoad": "Enabled",
-              "navigation": {
-                "Suppliers": {
-                  "detail": {
-                    "route": "SuppliersObjectPage"
-                  }
-                }
-              },
               "controlConfiguration": {
                 "@com.sap.vocabularies.UI.v1.LineItem": {
                   "tableSettings": {
                     "type": "ResponsiveTable",
+                    "selectionMode": "None",
                     "enableExport": true
                   },
                   "columns": {
-                    "DataFieldForAnnotation::FieldGroup::Identity": {
-                      "width": "15rem"
+                    "DataFieldWithUrl::title": {
+                      "width": "16rem"
                     },
-                    "DataField::country_code": {
+                    "DataField::requisitionNumber": {
                       "width": "9rem"
                     },
-                    "DataField::financialRating_code": {
+                    "DataField::requester": {
+                      "width": "6rem"
+                    },
+                    "DataField::totalValue": {
+                      "width": "9rem"
+                    },
+                    "DataField::supplierRiskClass_code": {
+                      "width": "9rem"
+                    },
+                    "DataFieldForAnnotation::DataPoint::Progress": {
                       "width": "7rem"
                     },
-                    "DataFieldForAnnotation::DataPoint::OnTimeDelivery": {
-                      "width": "8rem"
-                    },
-                    "DataField::qualityIncidents12M": {
-                      "width": "8rem"
-                    },
-                    "DataFieldForAnnotation::DataPoint::RiskScore": {
-                      "width": "8rem"
-                    },
-                    "DataField::riskClass_code": {
-                      "width": "9rem"
-                    },
-                    "DataField::isBlocked": {
-                      "width": "8rem"
+                    "DataField::pendingApprovalLevel": {
+                      "width": "6rem"
                     }
                   }
                 }
               }
-            }
-          }
-        },
-        "SuppliersObjectPage": {
-          "type": "Component",
-          "id": "SuppliersObjectPage",
-          "name": "sap.fe.templates.ObjectPage",
-          "options": {
-            "settings": {
-              "contextPath": "/Suppliers"
             }
           }
         }
