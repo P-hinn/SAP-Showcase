@@ -7,7 +7,8 @@ using {
   acme.procurement.FinancialRatings,
   acme.procurement.CountryRisks,
   acme.procurement.ApprovalDecisions,
-  acme.procurement.ApprovalLevels
+  acme.procurement.ApprovalLevels,
+  acme.procurement.RequisitionEventTypes
 } from './code-lists';
 
 /**
@@ -44,10 +45,25 @@ entity PurchaseRequisitions : cuid, managed {
   /** Free text captured with the last rejection, shown on the object page. */
   rejectionReason     : String(500);
 
+  /**
+   * Level that has to decide next, 0 when nobody has to. Calculated on read,
+   * so the approver inbox can filter on it in the database.
+   */
+  pendingApprovalLevel : Integer = (case when status.code = 'IA' then currentApprovalLevel + 1 else 0 end);
+
+  /**
+   * Purchase order(s) created in S/4HANA when the requisition was converted -
+   * one per supplier, comma separated. The item carries its own number.
+   */
+  purchaseOrderNumbers : String(100);
+
   items               : Composition of many PurchaseRequisitionItems
                           on items.requisition = $self;
   approvalSteps       : Composition of many ApprovalSteps
                           on approvalSteps.requisition = $self;
+  /** Audit trail: who did what, when. Written by the service, never by the client. */
+  events              : Composition of many RequisitionEvents
+                          on events.requisition = $self;
 }
 
 entity PurchaseRequisitionItems : cuid, managed {
@@ -66,6 +82,9 @@ entity PurchaseRequisitionItems : cuid, managed {
   supplier      : Association to Suppliers @mandatory;
   plant         : Association to Plants;
   deliveryDate  : Date @mandatory;
+  /** S/4HANA purchase order and item this line was converted into. */
+  purchaseOrderNumber : String(10);
+  purchaseOrderItem   : String(5);
 }
 
 /**
@@ -80,6 +99,22 @@ entity ApprovalSteps : cuid, managed {
   decidedBy   : String(60);
   decidedAt   : Timestamp;
   comment     : String(500);
+}
+
+/**
+ * Audit trail of a requisition. Append only: one row per lifecycle event,
+ * including the ones nobody clicked - e.g. an approval path that grew because
+ * a supplier was downgraded while the requisition was in approval.
+ */
+entity RequisitionEvents : cuid {
+  requisition   : Association to PurchaseRequisitions @mandatory;
+  eventType     : Association to RequisitionEventTypes @mandatory;
+  occurredAt    : Timestamp @mandatory;
+  actor         : String(60);
+  /** Approval level the event refers to, if any. */
+  approvalLevel : Integer;
+  /** Comment, reason, purchase order number or what changed - language neutral. */
+  note          : String(500);
 }
 
 /**
@@ -112,6 +147,9 @@ entity Suppliers : cuid, managed {
   riskScore           : Integer @readonly;
   riskClass           : Association to RiskClasses;
   riskCalculatedAt    : Timestamp @readonly;
+
+  /** Last time name, country and purchasing block were taken over from S/4HANA. */
+  s4SyncedAt          : Timestamp @readonly;
 }
 
 entity Materials : cuid {

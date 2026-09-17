@@ -103,7 +103,12 @@ export type MessageCode = (typeof MSG)[keyof typeof MSG];
 /** One rule violation. `target` is the field path the message points at. */
 export interface Finding {
   code: MessageCode;
+  /** English text, for logs and tests. What the user sees is localized from `messageKey`. */
   message: string;
+  /** Key in `_i18n/messages*.properties`. CAP localizes it per request locale. */
+  messageKey: string;
+  /** Positional arguments for the `{0}`, `{1}` placeholders of the localized text. */
+  args?: ReadonlyArray<string | number>;
   target?: string;
 }
 
@@ -214,6 +219,52 @@ export function nextApprovalLevel(currentApprovalLevel: number | null | undefine
   return Number(currentApprovalLevel ?? 0) + 1;
 }
 
+/** What a change of supplier risk means for one requisition. */
+export interface ApprovalPathReassessment {
+  /** Required level to store from now on. */
+  requiredLevel: number;
+  /** Levels whose approval steps have to be added to the chain, lowest first. */
+  addedLevels: number[];
+  /** True if the stored required level differs from before. */
+  changed: boolean;
+}
+
+/**
+ * Re-derives the approval path of a requisition after the risk class of one
+ * of its suppliers changed.
+ *
+ * - A draft simply follows the matrix: nobody has signed anything yet.
+ * - A requisition in approval can only get *stricter*. If the supplier got
+ *   riskier, the missing levels are appended to the chain and the approvers
+ *   who already signed keep their signature. If it got safer, the path stays
+ *   as submitted - an approver who was already asked is not silently removed.
+ * - Every other status is final as far as approval is concerned.
+ *
+ * This is the rule that makes a rating downgrade matter immediately instead of
+ * at the next submit.
+ */
+export function reassessApprovalPath(input: {
+  status: string | null | undefined;
+  totalValue: Amount;
+  riskClass: string | null | undefined;
+  requiredLevel: number | null | undefined;
+}): ApprovalPathReassessment {
+  const before = Number(input.requiredLevel ?? 0);
+  const matrix = determineRequiredLevel({ totalValue: input.totalValue, riskClass: input.riskClass });
+
+  if (input.status === STATUS.DRAFT) {
+    return { requiredLevel: matrix, addedLevels: [], changed: matrix !== before };
+  }
+
+  if (input.status === STATUS.IN_APPROVAL && matrix > before) {
+    const addedLevels: number[] = [];
+    for (let level = before + 1; level <= matrix; level++) addedLevels.push(level);
+    return { requiredLevel: matrix, addedLevels, changed: true };
+  }
+
+  return { requiredLevel: before, addedLevels: [], changed: false };
+}
+
 /** True if approving `level` completes the approval chain. */
 export function isFinalApproval(level: number, requiredLevel: number | null | undefined): boolean {
   return Number(level) >= Number(requiredLevel);
@@ -244,6 +295,8 @@ export function validateItem(input: {
     findings.push({
       code: MSG.QUANTITY_NOT_POSITIVE,
       message: `Item ${label}: enter a quantity greater than zero.`,
+      messageKey: 'QUANTITY_NOT_POSITIVE',
+      args: [label],
       target: `${target}/quantity`
     });
   }
@@ -252,6 +305,8 @@ export function validateItem(input: {
     findings.push({
       code: MSG.PRICE_NEGATIVE,
       message: `Item ${label}: the unit price must not be negative.`,
+      messageKey: 'PRICE_NEGATIVE',
+      args: [label],
       target: `${target}/unitPrice`
     });
   }
@@ -263,6 +318,8 @@ export function validateItem(input: {
     findings.push({
       code: MSG.DELIVERY_DATE_IN_PAST,
       message: `Item ${label}: the delivery date must not be in the past.`,
+      messageKey: 'DELIVERY_DATE_IN_PAST',
+      args: [label],
       target: `${target}/deliveryDate`
     });
   }
@@ -273,6 +330,8 @@ export function validateItem(input: {
       message: `Item ${label}: supplier ${item.supplier.name ?? ''} carries a purchasing block.`
         .replace(/\s+/g, ' ')
         .trim(),
+      messageKey: 'SUPPLIER_BLOCKED',
+      args: [label, item.supplier.name ?? ''],
       target: `${target}/supplier_ID`
     });
   }
@@ -297,13 +356,19 @@ export function validateForSubmission(input: {
   const itemList = input.items ?? [];
 
   if (!requisition?.title || String(requisition.title).trim() === '') {
-    findings.push({ code: MSG.TITLE_MISSING, message: 'Enter a title for the requisition.', target: 'title' });
+    findings.push({
+      code: MSG.TITLE_MISSING,
+      message: 'Enter a title for the requisition.',
+      messageKey: 'TITLE_MISSING',
+      target: 'title'
+    });
   }
 
   if (!requisition?.costCenter_ID) {
     findings.push({
       code: MSG.COST_CENTER_MISSING,
       message: 'Assign a cost center before submitting.',
+      messageKey: 'COST_CENTER_MISSING',
       target: 'costCenter_ID'
     });
   }
@@ -312,6 +377,7 @@ export function validateForSubmission(input: {
     findings.push({
       code: MSG.NO_ITEMS,
       message: 'A requisition must contain at least one item.',
+      messageKey: 'NO_ITEMS',
       target: 'items'
     });
   }
@@ -329,6 +395,8 @@ export function validateForSubmission(input: {
         message:
           `Cost center ${costCenter.costCenterCode} has ${remaining.toFixed(2)} left, ` +
           `the requisition asks for ${requested.toFixed(2)}.`,
+        messageKey: 'BUDGET_EXCEEDED',
+        args: [costCenter.costCenterCode ?? '', remaining.toFixed(2), requested.toFixed(2)],
         target: 'costCenter_ID'
       });
     }
@@ -351,7 +419,9 @@ export function validateDecision(input: {
   if (!canPerform(action, status)) {
     findings.push({
       code: MSG.INVALID_TRANSITION,
-      message: `Action "${action}" is not allowed for a requisition in status ${status}.`
+      message: `Action "${action}" is not allowed for a requisition in status ${status}.`,
+      messageKey: 'ACTION_NOT_ALLOWED',
+      args: [action, status ?? '']
     });
     // Everything below assumes an approvable requisition.
     return findings;
@@ -362,7 +432,8 @@ export function validateDecision(input: {
   if (requisition?.requester === user || requisition?.createdBy === user) {
     findings.push({
       code: MSG.SELF_APPROVAL,
-      message: 'You cannot decide on a requisition you raised yourself.'
+      message: 'You cannot decide on a requisition you raised yourself.',
+      messageKey: 'SELF_APPROVAL'
     });
   }
 
@@ -370,7 +441,8 @@ export function validateDecision(input: {
   if (level > Number(requisition?.requiredApprovalLevel_code ?? MAX_APPROVAL_LEVEL)) {
     findings.push({
       code: MSG.NO_PENDING_STEP,
-      message: 'The approval chain of this requisition is already complete.'
+      message: 'The approval chain of this requisition is already complete.',
+      messageKey: 'NO_PENDING_STEP'
     });
     return findings;
   }
@@ -379,7 +451,9 @@ export function validateDecision(input: {
   if (!(roles ?? []).includes(requiredRole)) {
     findings.push({
       code: MSG.MISSING_APPROVAL_ROLE,
-      message: `Approval level ${level} requires the role ${requiredRole}.`
+      message: `Approval level ${level} requires the role ${requiredRole}.`,
+      messageKey: 'MISSING_APPROVAL_ROLE',
+      args: [level, requiredRole]
     });
   }
 

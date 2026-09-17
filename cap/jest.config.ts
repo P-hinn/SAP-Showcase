@@ -27,6 +27,9 @@ const config: Config = {
       lines: 95
     }
   },
+  // Jest's own crawler is fast enough for this repository, and a broken
+  // watchman install on a developer machine should not fail the test run.
+  watchman: false,
   testTimeout: 30000
 };
 

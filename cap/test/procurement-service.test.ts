@@ -1,6 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import cds from '@sap/cds';
 
-const { expect, GET, POST, PATCH, data } = cds.test(__dirname + '/..');
+// --with-mocks serves the S/4HANA APIs (srv/external) in-process, exactly as
+// `npm start` does, so the integration is tested without a remote system.
+const { expect, GET, POST, PATCH, data } = cds.test(path.join(__dirname, '..'), '--with-mocks');
 
 /** Users from the mocked auth configuration in package.json. */
 const AS = {
@@ -24,6 +28,10 @@ const SUPPLIER = {
   highRisk: '50000006-0000-4000-8000-000000000006',     // Shenzhen Ruiyang, class C
   blocked: '50000008-0000-4000-8000-000000000008'       // Kontinental, purchasing block
 };
+
+/** In approval, 31.800 EUR from Anadolu (risk B) -> L2, L1 already signed. */
+const PR_HYDRAULICS = 'd0000008-0000-4000-8000-000000000008';
+const ANADOLU = '50000005-0000-4000-8000-000000000005';
 
 const COST_CENTER = 'cc000001-0000-4000-8000-000000000001';
 const MATERIAL = 'a0000001-0000-4000-8000-000000000001';
@@ -498,6 +506,233 @@ describe('ProcurementService', () => {
         expect(Number(row.remainingBudget))
           .to.equal(Number(row.annualBudget) - Number(row.consumedBudget));
       }
+    });
+  });
+
+  describe('languages and the current user', () => {
+    const german = (as: { auth: { username: string; password: string } }) => ({
+      ...as,
+      headers: { 'Accept-Language': 'de' }
+    });
+
+    it('tells the UI shell who is calling and with which roles', async () => {
+      const { data: body } = await GET('/procurement/currentUser()', AS.tom);
+      expect(body.id).to.equal('tom');
+      expect([...body.roles].sort()).to.deep.equal(['ApproverL1', 'Requester']);
+    });
+
+    it('answers with localized error messages but the same message code', async () => {
+      const english = await POST(action(PR.inApproval, 'submit'), {}, AS.rita).catch((e: unknown) => e);
+      const deutsch = await POST(action(PR.inApproval, 'submit'), {}, german(AS.rita)).catch((e: unknown) => e);
+      const messageOf = (e: unknown) =>
+        (e as { response: { data: { error: { code: string; message: string } } } }).response.data.error;
+
+      expect(messageOf(english).code).to.equal('PR009');
+      expect(messageOf(deutsch).code).to.equal('PR009');
+      expect(messageOf(english).message).to.match(/^Only a requisition in status Draft/);
+      expect(messageOf(deutsch).message).to.match(/^Nur Bestellanforderungen im Status Entwurf/);
+    });
+
+    it('localizes rule findings including their arguments', async () => {
+      await UPDATE(ITEMS)
+        .set({ deliveryDate: '2020-01-01' })
+        .where({ requisition_ID: PR.draftSmall });
+
+      const failure = await POST(action(PR.draftSmall, 'submit'), {}, german(AS.rita)).catch((e: unknown) => e);
+      const { message } = (failure as { response: { data: { error: { message: string } } } }).response.data.error;
+      expect(message).to.match(/^Position 10: Das Lieferdatum darf nicht in der Vergangenheit liegen\.$/);
+    });
+
+    it('serves code list texts and annotation labels in the request language', async () => {
+      const { data: body } = await GET(
+        `/procurement/PurchaseRequisitions?$filter=ID eq ${PR.inApproval}&$expand=status($select=name)`,
+        german(AS.rita)
+      );
+      expect(body.value[0].status.name).to.equal('In Genehmigung');
+
+      const { data: metadata } = await GET('/procurement/$metadata', german(AS.rita));
+      expect(metadata).to.contain('String="Bestellanforderungen"');
+    });
+
+    it('has a German text for every server message, with the same placeholders', () => {
+      const read = (file: string): Map<string, string> =>
+        new Map(
+          fs
+            .readFileSync(path.join(__dirname, '..', '_i18n', file), 'utf8')
+            .split('\n')
+            .filter((line) => line.includes('=') && !line.startsWith('#'))
+            .map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)] as [string, string])
+        );
+      const placeholders = (text: string | undefined) => (text ?? '').match(/\{\d\}/g)?.sort() ?? [];
+      const en = read('messages.properties');
+      const de = read('messages_de.properties');
+
+      expect([...de.keys()].sort()).to.deep.equal([...en.keys()].sort());
+      for (const [key, text] of en) expect([key, ...placeholders(de.get(key))]).to.deep.equal([key, ...placeholders(text)]);
+    });
+  });
+
+  describe('approver inbox', () => {
+    const numbersFor = async (as: typeof AS.rita): Promise<string[]> => {
+      const { data: body } = await GET('/procurement/MyApprovalTasks?$select=requisitionNumber', as);
+      return body.value.map((row: { requisitionNumber: string }) => row.requisitionNumber).sort();
+    };
+
+    it('shows an approver exactly the requisitions waiting for a level they hold', async () => {
+      expect(await numbersFor(AS.dana)).to.deep.equal(['PR-2026-000002', 'PR-2026-000006']);
+      expect(await numbersFor(AS.carl)).to.deep.equal(['PR-2026-000002', 'PR-2026-000006']);
+    });
+
+    it('is empty for a requester and for an approver whose level is already done', async () => {
+      expect(await numbersFor(AS.rita)).to.deep.equal([]);
+      expect(await numbersFor(AS.tom)).to.deep.equal([]);
+    });
+
+    it('never shows an approver their own requisition', async () => {
+      await UPDATE(HEADERS).set({ requester: 'dana', createdBy: 'dana' }).where({ ID: PR_HYDRAULICS });
+      expect(await numbersFor(AS.dana)).to.deep.equal(['PR-2026-000002']);
+    });
+
+    it('lets the approver decide right from the inbox and records it in the audit trail', async () => {
+      await POST(`/procurement/MyApprovalTasks(${PR_HYDRAULICS})/ProcurementService.approve`, { comment: 'ok' }, AS.dana);
+
+      const { data: body } = await GET(
+        `/procurement/${active(PR_HYDRAULICS)}?$select=status_code,currentApprovalLevel&$expand=events($select=eventType_code,actor,approvalLevel,note)`,
+        AS.dana
+      );
+      expect(body.status_code).to.equal('AP');
+      expect(body.currentApprovalLevel).to.equal(2);
+      const last = body.events.find((event: { actor: string }) => event.actor === 'dana');
+      expect(last).to.deep.include({ eventType_code: 'APPR', approvalLevel: 2, note: 'ok' });
+    });
+  });
+
+  describe('audit trail', () => {
+    it('writes one event per lifecycle step', async () => {
+      await makeDeliverable(PR.draftSmall);
+      await POST(action(PR.draftSmall, 'submit'), {}, AS.rita);
+      await POST(action(PR.draftSmall, 'withdraw'), {}, AS.rita);
+
+      const { data: body } = await GET(
+        `/procurement/RequisitionEvents?$filter=requisition_ID eq ${PR.draftSmall}&$orderby=occurredAt&$select=eventType_code,actor`,
+        AS.rita
+      );
+      expect(body.value.map((event: { eventType_code: string }) => event.eventType_code)).to.deep.equal(['SUBM', 'WDRW']);
+    });
+  });
+
+  describe('supplier downgrade', () => {
+    const downgrade = (as: typeof AS.mona, rating = 'CC') =>
+      POST(`/procurement/Suppliers(${ANADOLU})/ProcurementService.updateFinancialRating`, { rating }, as);
+
+    it('makes an open requisition stricter immediately: the missing level is appended', async () => {
+      const { data: supplier } = await downgrade(AS.mona);
+      expect(supplier.riskClass_code).to.equal('C');
+
+      const { data: body } = await GET(
+        `/procurement/${active(PR_HYDRAULICS)}?$expand=approvalSteps($select=level_code,decision_code),events($select=eventType_code,note)`,
+        AS.mona
+      );
+      expect(body.supplierRiskClass_code).to.equal('C');
+      expect(body.requiredApprovalLevel_code).to.equal(3);
+      const steps = body.approvalSteps
+        .map((step: { level_code: number; decision_code: string }) => `${step.level_code}:${step.decision_code}`)
+        .sort();
+      expect(steps).to.deep.equal(['1:APPR', '2:PEND', '3:PEND']);
+      const path = body.events.find((event: { eventType_code: string }) => event.eventType_code === 'PATH');
+      expect(path.note).to.equal('Anadolu Endustri A.S.: B -> C, L2 -> L3');
+    });
+
+    it('is reserved for the procurement admin', async () => {
+      const { status } = await expectFailure(downgrade(AS.dana));
+      expect(status).to.equal(403);
+    });
+
+    it('rejects a rating the rating table does not know', async () => {
+      const { status, codes } = await expectFailure(downgrade(AS.mona, 'XYZ'));
+      expect(status).to.equal(400);
+      expect(codes).to.include('PR407');
+    });
+  });
+
+  describe('S/4HANA integration', () => {
+    it('creates one purchase order per supplier in S/4HANA and writes the numbers back', async () => {
+      const { data: body } = await POST(action(PR.approved, 'close'), {}, AS.mona);
+      expect(body.status_code).to.equal('CL');
+      expect(body.purchaseOrderNumbers).to.match(/^45\d{8}$/);
+
+      const s4 = await cds.connect.to('API_PURCHASEORDER_PROCESS_SRV');
+      const order = await s4.run(
+        SELECT.one.from('API_PURCHASEORDER_PROCESS_SRV.A_PurchaseOrder', (po: any) => {
+          po('*');
+          po.to_PurchaseOrderItem((item: any) => item('*'));
+        }).where({ PurchaseOrder: body.purchaseOrderNumbers })
+      );
+      expect(order).to.deep.include({ Supplier: '4711004', CompanyCode: '1010', PurchaseOrderType: 'NB' });
+      expect(order.to_PurchaseOrderItem).to.have.length(1);
+      expect(order.to_PurchaseOrderItem[0]).to.deep.include({ PurchaseOrderItem: '00010', Material: '400000333', Plant: '1010' });
+
+      const { data: items } = await GET(
+        `/procurement/PurchaseRequisitionItems?$filter=requisition_ID eq ${PR.approved}&$select=purchaseOrderNumber,purchaseOrderItem`,
+        AS.mona
+      );
+      expect(items.value[0]).to.deep.include({ purchaseOrderNumber: body.purchaseOrderNumbers, purchaseOrderItem: '00010' });
+    });
+
+    it('takes over suppliers from S/4HANA and adjusts open requisitions of a newly blocked one', async () => {
+      const { data: result } = await POST('/procurement/syncSuppliersFromS4', {}, AS.mona);
+      expect(result).to.deep.include({ created: 1, updated: 2, unchanged: 6, adjustedRequisitions: 1 });
+
+      const { data: suppliers } = await GET(
+        "/procurement/Suppliers?$filter=supplierNumber in ('4711004','4711007','4711009')&$orderby=supplierNumber&$select=name,isBlocked,country_code,riskClass_code,s4SyncedAt",
+        AS.mona
+      );
+      const [wisla, bharat, nordic] = suppliers.value;
+      expect(wisla).to.deep.include({ isBlocked: true, riskClass_code: 'C' });
+      expect(bharat.name).to.equal('Bharat Polymers Pvt. Ltd.');
+      expect(nordic).to.deep.include({ name: 'Nordic Castings AB', country_code: 'SE' });
+      expect(nordic.s4SyncedAt).to.be.a('string');
+
+      // The draft for 49.800 EUR used Wisla (A -> C): its path grows from L2 to L3.
+      const { data: draft } = await GET(`/procurement/${active(PR.overBudget)}?$select=requiredApprovalLevel_code`, AS.mona);
+      expect(draft.requiredApprovalLevel_code).to.equal(3);
+    });
+
+    it('changes nothing when run a second time', async () => {
+      await POST('/procurement/syncSuppliersFromS4', {}, AS.mona);
+      const { data: again } = await POST('/procurement/syncSuppliersFromS4', {}, AS.mona);
+      expect(again).to.deep.include({ created: 0, updated: 0, unchanged: 9, adjustedRequisitions: 0 });
+    });
+
+    it('is reserved for the procurement admin', async () => {
+      const { status } = await expectFailure(POST('/procurement/syncSuppliersFromS4', {}, AS.carl));
+      expect(status).to.equal(403);
+    });
+  });
+
+  describe('demo mode', () => {
+    const asCookie = (id: string) => ({ headers: { Cookie: `acme-demo-user=${id}` } });
+
+    it('switches the user with a cookie, even against cached basic credentials', async () => {
+      const { data: body } = await GET('/procurement/currentUser()', { ...AS.rita, ...asCookie('carl') });
+      expect(body.id).to.equal('carl');
+    });
+
+    it('ignores a cookie naming a user that is not a demo user', async () => {
+      const { status } = await expectFailure(GET('/procurement/currentUser()', asCookie('alice')));
+      expect(status).to.equal(401);
+    });
+
+    it('lists exactly the demo users of this app', async () => {
+      const { data: body } = await GET('/demo/users()', AS.rita);
+      expect(body.value.map((user: { id: string }) => user.id).sort()).to.deep.equal(['carl', 'dana', 'mona', 'rita', 'tom']);
+    });
+
+    it('restores the sample data', async () => {
+      await POST('/procurement/syncSuppliersFromS4', {}, AS.mona);
+      await POST('/demo/resetData', {}, AS.rita);
+      const { data: body } = await GET('/procurement/Suppliers/$count', AS.rita);
+      expect(Number(body)).to.equal(8);
     });
   });
 });

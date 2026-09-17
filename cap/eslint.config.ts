@@ -18,7 +18,9 @@ export default tseslint.config(
       // Generated from the CDS model by @cap-js/cds-typer.
       '@cds-models/**',
       // Fiori Elements apps: UI5 sources are linted by the UI5 tooling, not here.
-      'app/**/webapp/**'
+      'app/**/webapp/**',
+      // Shell, start page and tour: browser scripts in the same UI5 module format.
+      'app/shared/**'
     ]
   },
 

@@ -2,9 +2,22 @@ import cds from '@sap/cds';
 
 import { lineAmount, sumAmounts, toMinorUnits, type Amount } from './lib/money';
 import * as policy from './lib/approval-policy';
-import type { Finding, ValidatableItem, ValidatableRequisition } from './lib/approval-policy';
+import type { ValidatableItem } from './lib/approval-policy';
 import * as risk from './lib/risk-scoring';
 import type { RiskClass } from './lib/risk-scoring';
+import * as s4 from './s4-handlers';
+import {
+  EVENT,
+  criticalityForRiskClass,
+  decidableLevels,
+  keyOf,
+  knownRolesOf,
+  raise,
+  rolesOf,
+  today,
+  type EventType,
+  type RequisitionRow
+} from './service-helpers';
 
 /**
  * Implementation of the transactional procurement service.
@@ -14,14 +27,6 @@ import type { RiskClass } from './lib/risk-scoring';
  * modules, which is what makes the rules testable without a database and
  * comparable line by line with the ABAP implementation.
  */
-
-/** A requisition row as the database hands it back. */
-interface RequisitionRow extends ValidatableRequisition {
-  ID: string;
-  requisitionNumber?: string | null;
-  totalValue?: Amount;
-  supplierRiskClass_code?: string | null;
-}
 
 /** An item row enriched with the supplier attributes the rules need. */
 interface EnrichedItem extends ValidatableItem {
@@ -54,15 +59,36 @@ export default class ProcurementService extends cds.ApplicationService {
     PurchaseRequisitions: any;
     PurchaseRequisitionItems: any;
     ApprovalSteps: any;
+    RequisitionEvents: any;
     Suppliers: any;
     CostCenters: any;
+    FinancialRatings: any;
+    Countries: any;
   };
 
   override async init(): Promise<void> {
-    const { PurchaseRequisitions, PurchaseRequisitionItems, ApprovalSteps, Suppliers, CostCenters } =
-      this.entities as Record<string, any>;
+    const {
+      PurchaseRequisitions,
+      PurchaseRequisitionItems,
+      ApprovalSteps,
+      RequisitionEvents,
+      MyApprovalTasks,
+      Suppliers,
+      CostCenters,
+      FinancialRatings
+    } = this.entities as Record<string, any>;
+    const { Countries } = cds.entities('sap.common') as Record<string, any>;
 
-    this.entityRefs = { PurchaseRequisitions, PurchaseRequisitionItems, ApprovalSteps, Suppliers, CostCenters };
+    this.entityRefs = {
+      PurchaseRequisitions,
+      PurchaseRequisitionItems,
+      ApprovalSteps,
+      RequisitionEvents,
+      Suppliers,
+      CostCenters,
+      FinancialRatings,
+      Countries
+    };
 
     // ---------------------------------------------------------------- reads
     // A virtual field can only be calculated from data that was actually read,
@@ -85,6 +111,16 @@ export default class ProcurementService extends cds.ApplicationService {
           row.riskScoreCriticality = criticalityForRiskClass(row.riskClass_code as string | null);
         }
       }
+    });
+
+    // Approver inbox: only what the calling user may decide on next. The
+    // filter runs in the database; roles and segregation of duties are the
+    // same rules validateDecision() enforces when the button is pressed.
+    this.before('READ', MyApprovalTasks, (req) => {
+      const levels = decidableLevels(req.user);
+      const query = req.query as any;
+      query.where({ pendingApprovalLevel: { in: levels.length ? levels : [-1] } });
+      query.where({ requester: { '!=': req.user.id }, createdBy: { '!=': req.user.id } });
     });
 
     // ------------------------------------------------------- determinations
@@ -112,13 +148,30 @@ export default class ProcurementService extends cds.ApplicationService {
     this.on('approve', PurchaseRequisitions, (req) => this.onDecision(req, 'approve'));
     this.on('rejectRequisition', PurchaseRequisitions, (req) => this.onDecision(req, 'reject'));
     this.on('withdraw', PurchaseRequisitions, (req) => this.onWithdraw(req));
-    this.on('close', PurchaseRequisitions, (req) => this.onSimpleTransition(req, 'close'));
+    this.on('close', PurchaseRequisitions, (req) => s4.convertToPurchaseOrder(req, this.s4Deps()));
     this.on('reopen', PurchaseRequisitions, (req) => this.onReopen(req));
 
+    this.on('approve', MyApprovalTasks, (req) => this.onDecision(req, 'approve'));
+    this.on('rejectRequisition', MyApprovalTasks, (req) => this.onDecision(req, 'reject'));
+
     this.on('recalculateRisk', Suppliers, (req) => this.onRecalculateRisk(req));
+    this.on('updateFinancialRating', Suppliers, (req) => s4.updateFinancialRating(req, this.s4Deps()));
+    this.on('syncSuppliersFromS4', (req) => s4.syncSuppliersFromS4(req, this.s4Deps()));
     this.on('recalculateAllSupplierRisks', (req) => this.onRecalculateAllRisks(req));
+    this.on('currentUser', (req) => ({ id: req.user.id, roles: knownRolesOf(req.user) }));
 
     await super.init();
+  }
+
+  /** What the S/4HANA handlers are allowed to use from this service. */
+  private s4Deps(): s4.S4Deps {
+    return {
+      entities: this.entityRefs,
+      loadRequisition: (id, req) => this.loadRequisition(id, req),
+      readActive: (id) => this.readActive(id),
+      logEvent: (req, id, eventType, details) => this.logEvent(req, id, eventType, details),
+      assessSupplier: (id, req) => this.assessSupplierById(id, req)
+    };
   }
 
   // ==================================================================
@@ -225,7 +278,8 @@ export default class ProcurementService extends cds.ApplicationService {
     if (!policy.canPerform('submit', requisition.status_code)) {
       return req.error({
         code: policy.MSG.INVALID_TRANSITION,
-        message: `Only a requisition in status Draft can be submitted (current status: ${requisition.status_code}).`,
+        message: 'SUBMIT_ONLY_DRAFT',
+        args: [requisition.status_code ?? ''],
         status: 400
       });
     }
@@ -273,6 +327,7 @@ export default class ProcurementService extends cds.ApplicationService {
         decision_code: step.decision
       }))
     );
+    await this.logEvent(req, id, EVENT.SUBMITTED);
 
     return this.readActive(id);
   }
@@ -316,6 +371,7 @@ export default class ProcurementService extends cds.ApplicationService {
         rejectionReason: data.reason,
         completedAt: req.timestamp
       });
+      await this.logEvent(req, id, EVENT.REJECTED, { approvalLevel: level, note: data.reason });
       return this.readActive(id);
     }
 
@@ -330,6 +386,7 @@ export default class ProcurementService extends cds.ApplicationService {
     // the purchase order is created - otherwise two requisitions could both
     // pass the budget check against the same remaining amount.
     if (isFinal) await this.commitBudget(requisition);
+    await this.logEvent(req, id, EVENT.APPROVED, { approvalLevel: level, note: comment });
 
     return this.readActive(id);
   }
@@ -344,7 +401,8 @@ export default class ProcurementService extends cds.ApplicationService {
     if (!policy.canPerform('withdraw', requisition.status_code)) {
       return req.error({
         code: policy.MSG.INVALID_TRANSITION,
-        message: `A requisition in status ${requisition.status_code} cannot be withdrawn.`,
+        message: 'WITHDRAW_NOT_ALLOWED',
+        args: [requisition.status_code ?? ''],
         status: 400
       });
     }
@@ -353,8 +411,7 @@ export default class ProcurementService extends cds.ApplicationService {
     if (Number(requisition.currentApprovalLevel) > 0) {
       return req.error({
         code: policy.MSG.INVALID_TRANSITION,
-        message:
-          'The requisition has already been approved on at least one level and can no longer be withdrawn.',
+        message: 'WITHDRAW_ALREADY_APPROVED',
         status: 400
       });
     }
@@ -365,6 +422,7 @@ export default class ProcurementService extends cds.ApplicationService {
       submittedAt: null,
       currentApprovalLevel: 0
     });
+    await this.logEvent(req, id, EVENT.WITHDRAWN);
     return this.readActive(id);
   }
 
@@ -378,7 +436,8 @@ export default class ProcurementService extends cds.ApplicationService {
     if (!policy.canPerform('reopen', requisition.status_code)) {
       return req.error({
         code: policy.MSG.INVALID_TRANSITION,
-        message: `Only a rejected requisition can be reopened (current status: ${requisition.status_code}).`,
+        message: 'REOPEN_ONLY_REJECTED',
+        args: [requisition.status_code ?? ''],
         status: 400
       });
     }
@@ -392,34 +451,15 @@ export default class ProcurementService extends cds.ApplicationService {
       rejectionReason: null,
       currentApprovalLevel: 0
     });
-    return this.readActive(id);
-  }
-
-  /** Status only transition without side effects (close). */
-  private async onSimpleTransition(req: cds.Request, action: policy.LifecycleAction): Promise<unknown> {
-    const { PurchaseRequisitions } = this.entityRefs;
-    const id = keyOf(req);
-    const requisition = await this.loadRequisition(id, req);
-    if (!requisition) return;
-
-    const target = policy.targetStatus(action, requisition.status_code);
-    if (!target) {
-      return req.error({
-        code: policy.MSG.INVALID_TRANSITION,
-        message: `Action "${action}" is not allowed for a requisition in status ${requisition.status_code}.`,
-        status: 400
-      });
-    }
-
-    await UPDATE(PurchaseRequisitions, id).with({ status_code: target });
+    await this.logEvent(req, id, EVENT.REOPENED);
     return this.readActive(id);
   }
 
   /** Recalculates the risk score of a single supplier. */
   private async onRecalculateRisk(req: cds.Request): Promise<unknown> {
     const id = keyOf(req);
-    const assessment = await this.assessSupplierById(id, req);
-    if (!assessment) return;
+    const result = await this.assessSupplierById(id, req);
+    if (!result) return;
     return SELECT.one.from(this.entityRefs.Suppliers).where({ ID: id });
   }
 
@@ -433,8 +473,8 @@ export default class ProcurementService extends cds.ApplicationService {
     let changed = 0;
 
     for (const supplier of suppliers) {
-      const assessment = await this.assessSupplierById(supplier.ID, req);
-      if (assessment && assessment.score !== supplier.riskScore) changed += 1;
+      const result = await this.assessSupplierById(supplier.ID, req);
+      if (result && result.assessment.score !== supplier.riskScore) changed += 1;
     }
 
     return { evaluated: suppliers.length, changed };
@@ -445,15 +485,15 @@ export default class ProcurementService extends cds.ApplicationService {
   // ==================================================================
 
   /** Reads the active (non draft) header. */
-  private async readActive(id: string | undefined): Promise<RequisitionRow | undefined> {
+  async readActive(id: string | undefined): Promise<RequisitionRow | undefined> {
     return SELECT.one.from(this.entityRefs.PurchaseRequisitions).where({ ID: id });
   }
 
   /** Reads the header and raises a 404 if it does not exist. */
-  private async loadRequisition(id: string | undefined, req: cds.Request): Promise<RequisitionRow | null> {
+  async loadRequisition(id: string | undefined, req: cds.Request): Promise<RequisitionRow | null> {
     const requisition = await this.readActive(id);
     if (!requisition) {
-      req.error({ code: 'PR404', message: `Purchase requisition ${id} does not exist.`, status: 404 });
+      req.error({ code: 'PR404', message: 'REQUISITION_NOT_FOUND', args: [id ?? ''], status: 404 });
       return null;
     }
     return requisition;
@@ -566,11 +606,15 @@ export default class ProcurementService extends cds.ApplicationService {
     });
   }
 
-  /** Resolves the rating tables, runs the scoring and persists the result. */
-  private async assessSupplierById(
+  /**
+   * Resolves the rating tables, runs the scoring and persists the result. If
+   * the risk class changed, the approval path of every open requisition that
+   * uses the supplier is adjusted right away.
+   */
+  async assessSupplierById(
     supplierId: string | undefined,
     req: cds.Request
-  ): Promise<risk.RiskAssessment | null> {
+  ): Promise<{ assessment: risk.RiskAssessment; adjustedRequisitions: number } | null> {
     // One query, two expands: the rating table and the country risk table are
     // joined in the database rather than fetched one by one. This matters for
     // the bulk run, which would otherwise fire 3 statements per supplier.
@@ -593,7 +637,7 @@ export default class ProcurementService extends cds.ApplicationService {
       });
 
     if (!supplier) {
-      req.error({ code: 'PR405', message: `Supplier ${supplierId} does not exist.`, status: 404 });
+      req.error({ code: 'PR405', message: 'SUPPLIER_NOT_FOUND', args: [supplierId ?? ''], status: 404 });
       return null;
     }
 
@@ -612,7 +656,93 @@ export default class ProcurementService extends cds.ApplicationService {
       riskCalculatedAt: req.timestamp
     });
 
-    return assessment;
+    const adjustedRequisitions =
+      assessment.riskClass !== supplier.riskClass_code
+        ? await this.adjustOpenRequisitions(supplier, supplier.riskClass_code, assessment.riskClass, req)
+        : 0;
+
+    return { assessment, adjustedRequisitions };
+  }
+
+  /**
+   * Re-derives risk class and approval path of every draft or in-approval
+   * requisition with an item from this supplier. A requisition in approval
+   * only ever gets stricter: missing levels are appended as pending steps and
+   * the change is written to its audit trail.
+   *
+   * @returns number of requisitions whose required approval level changed
+   */
+  private async adjustOpenRequisitions(
+    supplier: { ID: string; name?: string | null },
+    previousClass: string | null | undefined,
+    newClass: string,
+    req: cds.Request
+  ): Promise<number> {
+    const { PurchaseRequisitions, PurchaseRequisitionItems, ApprovalSteps } = this.entityRefs;
+
+    const affected: Array<{ requisition_ID: string }> = await SELECT.distinct
+      .from(PurchaseRequisitionItems)
+      .columns('requisition_ID')
+      .where({ supplier_ID: supplier.ID });
+    if (affected.length === 0) return 0;
+
+    const requisitions: RequisitionRow[] = await SELECT.from(PurchaseRequisitions).where({
+      ID: { in: affected.map((row) => row.requisition_ID) },
+      status_code: { in: [policy.STATUS.DRAFT, policy.STATUS.IN_APPROVAL] }
+    });
+
+    let adjusted = 0;
+    for (const requisition of requisitions) {
+      const derived = await this.recalculate(requisition);
+      const path = policy.reassessApprovalPath({
+        status: requisition.status_code,
+        totalValue: derived.totalValue,
+        riskClass: derived.riskClass,
+        requiredLevel: requisition.requiredApprovalLevel_code
+      });
+
+      await UPDATE(PurchaseRequisitions, requisition.ID).with({
+        supplierRiskClass_code: derived.riskClass,
+        requiredApprovalLevel_code: path.requiredLevel
+      });
+      if (!path.changed) continue;
+
+      adjusted += 1;
+      if (path.addedLevels.length) {
+        await INSERT.into(ApprovalSteps).entries(
+          path.addedLevels.map((level) => ({
+            requisition_ID: requisition.ID,
+            level_code: level,
+            decision_code: policy.DECISION.PENDING
+          }))
+        );
+      }
+      await this.logEvent(req, requisition.ID, EVENT.PATH_ADJUSTED, {
+        approvalLevel: path.requiredLevel,
+        note:
+          `${supplier.name ?? ''}: ${previousClass ?? '-'} -> ${newClass}, ` +
+          `L${requisition.requiredApprovalLevel_code ?? '-'} -> L${path.requiredLevel}`
+      });
+    }
+    return adjusted;
+  }
+
+  /** Appends one entry to the audit trail of a requisition. */
+  async logEvent(
+    req: cds.Request,
+    requisitionId: string | undefined,
+    eventType: EventType,
+    details: { approvalLevel?: number; note?: string | null } = {}
+  ): Promise<void> {
+    if (!requisitionId) return;
+    await INSERT.into(this.entityRefs.RequisitionEvents).entries({
+      requisition_ID: requisitionId,
+      eventType_code: eventType,
+      occurredAt: req.timestamp,
+      actor: req.user.id,
+      approvalLevel: details.approvalLevel ?? null,
+      note: details.note ?? null
+    });
   }
 
   // ==================================================================
@@ -632,61 +762,9 @@ export default class ProcurementService extends cds.ApplicationService {
 
     req.error({
       code: 'PR403',
-      message: 'Only the requester of this requisition can perform this action.',
+      message: 'ONLY_REQUESTER',
       status: 403
     });
     return false;
   }
-}
-
-// ====================================================================
-// Module level helpers
-// ====================================================================
-
-/**
- * Extracts the entity key from a bound action request. Draft enabled entities
- * carry a composite key (ID + IsActiveEntity), plain ones just the ID.
- */
-function keyOf(req: cds.Request): string | undefined {
-  const params = req.params as ReadonlyArray<unknown> | undefined;
-  const key = params?.[params.length - 1];
-  if (!key) return undefined;
-  return typeof key === 'object' ? (key as { ID?: string }).ID : (key as string);
-}
-
-/** The request timestamp as an ISO calendar date (YYYY-MM-DD). */
-function today(req: cds.Request): string {
-  return new Date(req.timestamp).toISOString().slice(0, 10);
-}
-
-/** Approval roles the user actually holds. */
-function rolesOf(user: cds.User): string[] {
-  const roles: string[] = [];
-  for (let level = 1; level <= policy.MAX_APPROVAL_LEVEL; level++) {
-    const role = policy.approvalRole(level);
-    if (user.is(role)) roles.push(role);
-  }
-  if (user.is('ProcurementAdmin')) roles.push('ProcurementAdmin');
-  return roles;
-}
-
-/** Turns rule findings into OData error details. */
-function raise(req: cds.Request, findings: readonly Finding[]): void {
-  for (const finding of findings) {
-    req.error({
-      code: finding.code,
-      message: finding.message,
-      target: finding.target,
-      status: 400
-    });
-  }
-}
-
-/** Fiori criticality for a risk class: 1 = red, 2 = yellow, 3 = green. */
-function criticalityForRiskClass(riskClass: string | null | undefined): number {
-  const map: Record<string, number> = { A: 3, B: 2, C: 1 };
-  // `riskClass && map[riskClass]` would return '' for an empty risk class -
-  // a string where the caller expects a number. noUncheckedIndexedAccess
-  // caught it.
-  return map[riskClass ?? ''] ?? 0;
 }

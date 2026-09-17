@@ -1,0 +1,11 @@
+code;locale;name;descr
+AAA;de;AAA;Höchste Qualität - minimales Kreditrisiko
+AA;de;AA;Hohe Qualität - sehr geringes Kreditrisiko
+A;de;A;Gehobene mittlere Qualität - geringes Kreditrisiko
+BBB;de;BBB;Mittlere Qualität - moderates Kreditrisiko
+BB;de;BB;Spekulativ - erhebliches Kreditrisiko
+B;de;B;Hoch spekulativ - hohes Kreditrisiko
+CCC;de;CCC;Erhebliches Risiko - sehr hohes Kreditrisiko
+CC;de;CC;Sehr hohes Risiko - Ausfall wahrscheinlich
+C;de;C;Extrem spekulativ - Ausfall steht bevor
+D;de;D;Zahlungsausfall

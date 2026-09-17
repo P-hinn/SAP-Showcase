@@ -22,13 +22,14 @@
     "eslint": "^10",
     "jest": "^30",
     "jiti": "^2.7.0",
+    "puppeteer-core": "^24.43.1",
     "ts-jest": "^29.4.12",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0"
   },
   "scripts": {
-    "start": "cds-serve",
+    "start": "cds-tsx serve all --with-mocks --in-memory?",
     "watch": "cds-tsx watch",
     "types": "cds-typer \"*\" --outputDirectory @cds-models",
     "build": "cds build --production && tsc -p tsconfig.build.json",
@@ -36,7 +37,10 @@
     "test": "jest --runInBand",
     "test:coverage": "jest --runInBand --coverage",
     "lint": "eslint .",
-    "compile:check": "cds compile srv --to sql > /dev/null && cds compile srv --to edmx -s all > /dev/null"
+    "compile:check": "cds compile srv --to sql > /dev/null && cds compile srv --to edmx -s all > /dev/null",
+    "start:sandbox": "cds-tsx serve all --with-mocks --in-memory? --profile development,sandbox",
+    "check:i18n": "node ../scripts/check-i18n.mjs",
+    "screenshots": "node ../scripts/screenshots.mjs"
   },
   "cds": {
     "requires": {
@@ -102,6 +106,31 @@
         },
         "[production]": {
           "kind": "xsuaa"
+        }
+      },
+      "API_BUSINESS_PARTNER": {
+        "kind": "odata-v2",
+        "model": "srv/external/API_BUSINESS_PARTNER",
+        "[sandbox]": {
+          "credentials": {
+            "url": "https://sandbox.api.sap.com/s4hanacloud/sap/opu/odata/sap/API_BUSINESS_PARTNER"
+          }
+        },
+        "[production]": {
+          "credentials": {
+            "destination": "S4HANA",
+            "path": "/sap/opu/odata/sap/API_BUSINESS_PARTNER"
+          }
+        }
+      },
+      "API_PURCHASEORDER_PROCESS_SRV": {
+        "kind": "odata-v2",
+        "model": "srv/external/API_PURCHASEORDER_PROCESS_SRV",
+        "[production]": {
+          "credentials": {
+            "destination": "S4HANA",
+            "path": "/sap/opu/odata/sap/API_PURCHASEORDER_PROCESS_SRV"
+          }
         }
       }
     },
