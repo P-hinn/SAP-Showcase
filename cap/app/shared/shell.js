@@ -7,7 +7,7 @@
  * Elements component (via ComponentSupport) or one of the pages built here
  * (start page, cockpit, decision maker page), then offers the onboarding tour.
  *
- * <div id="acme-shell" data-app="home|solution|requisitions|approvals|suppliers|cockpit">
+ * <div id="acme-shell" data-app="home|solution|requisitions|approvals|suppliers|cockpit|rules">
  */
 sap.ui.define([
   'sap/f/ShellBar',
@@ -33,6 +33,7 @@ sap.ui.define([
   'acme/shared/tour',
   'acme/shared/tours',
   'acme/shared/demo',
+  'acme/shared/notifications',
   // Loaded for its side effect: the library init declares which sap.m controls
   // may sit in a ShellBar. Without it the Fiori apps (which do not preload
   // sap.f) reject the language button.
@@ -40,13 +41,13 @@ sap.ui.define([
 ], function (
   ShellBar, Avatar, Button, OverflowToolbarButton, Menu, MenuItem, ResponsivePopover,
   VBox, HBox, Title, Text, Label, ObjectStatus, MessageStrip, MessageToast, StandardListItem, List,
-  Localization, ResourceBundle, Theming, tour, tours, demo
+  Localization, ResourceBundle, Theming, tour, tours, demo, notifications
 ) {
   'use strict';
 
   var host = document.getElementById('acme-shell');
   var app = (host && host.getAttribute('data-app')) || 'home';
-  var isPage = app === 'home' || app === 'cockpit' || app === 'solution';
+  var isPage = app === 'home' || app === 'cockpit' || app === 'solution' || app === 'rules';
   var base = isPage ? './' : '../../';
 
   var APPS = [
@@ -55,7 +56,8 @@ sap.ui.define([
     { key: 'requisitions', titleKey: 'AppRequisitions', icon: 'sap-icon://request', href: base + 'purchase-requisitions/webapp/index.html' },
     { key: 'approvals', titleKey: 'AppApprovals', icon: 'sap-icon://approvals', href: base + 'approvals/webapp/index.html' },
     { key: 'suppliers', titleKey: 'AppSuppliers', icon: 'sap-icon://supplier', href: base + 'suppliers/webapp/index.html' },
-    { key: 'cockpit', titleKey: 'AppCockpit', icon: 'sap-icon://business-objects-experience', href: base + 'cockpit.html' }
+    { key: 'cockpit', titleKey: 'AppCockpit', icon: 'sap-icon://business-objects-experience', href: base + 'cockpit.html' },
+    { key: 'rules', titleKey: 'AppRules', icon: 'sap-icon://table-view', href: base + 'rules.html' }
   ];
 
   var LANGUAGES = [
@@ -158,10 +160,16 @@ sap.ui.define([
       })
     });
 
-    var languageButton = new Button('acmeShellLanguage', {
-      text: currentLanguage().toUpperCase(),
+    // An OverflowToolbarButton, not a Button: on a phone the ShellBar moves its
+    // content into an overflow menu, and only overflow-aware buttons survive
+    // that - a plain Button throws and takes the whole shell down with it.
+    var languageLabel = LANGUAGES.filter(function (l) {
+      return l.key === currentLanguage();
+    })[0].label;
+    var languageButton = new OverflowToolbarButton('acmeShellLanguage', {
+      text: t('ShellLanguage') + ': ' + languageLabel,
       icon: 'sap-icon://world',
-      tooltip: t('ShellLanguage'),
+      tooltip: t('ShellLanguage') + ': ' + languageLabel,
       type: 'Transparent',
       press: function (event) {
         languageMenu.openBy(event.getSource());
@@ -280,6 +288,20 @@ sap.ui.define([
         userPopover.openBy(avatar);
       }
     });
+    // Before placeAt, on purpose: ShellBar.setShowNotifications remembers
+    // getParent() at call time and later calls _getOverflowButton() on it. Once
+    // the bar is placed, that parent is the UIArea, and on a phone - where the
+    // bell moves into the overflow menu - it throws. Before placeAt the parent
+    // is null, which UI5 does check for.
+    notifications.attach(shellBar, {
+      t: t,
+      user: user,
+      base: base,
+      open: function (requisitionId) {
+        window.location.href =
+          appHref('requisitions') + '#/PurchaseRequisitions(ID=' + requisitionId + ',IsActiveEntity=true)';
+      }
+    });
     shellBar.placeAt(host);
 
     demo.initScript({ t: t, base: base, user: user, appHref: appHref, currentApp: app });
@@ -308,7 +330,8 @@ sap.ui.define([
   var PAGE_MODULES = {
     home: 'acme/shared/home',
     cockpit: 'acme/shared/cockpit',
-    solution: 'acme/shared/solution'
+    solution: 'acme/shared/solution',
+    rules: 'acme/shared/rules'
   };
 
   var pageReady = PAGE_MODULES[app]
@@ -326,7 +349,14 @@ sap.ui.define([
     var bundle = results[0];
     var page = results[1];
     var user = results[2];
-    buildShell(bundle, user);
+    // The page must never depend on the header bar rendering: a broken shell
+    // is an annoyance, an empty page is a failed demo.
+    try {
+      buildShell(bundle, user);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Shell could not be built', error);
+    }
     if (page) page.render(document.getElementById('acme-content'), bundle, { base: base, user: user });
   });
 });

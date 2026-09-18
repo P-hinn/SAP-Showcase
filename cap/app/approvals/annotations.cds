@@ -51,8 +51,11 @@ annotate service.MyApprovalTasks with @(
         ![@UI.Importance]: #High
       },
       { $Type: 'UI.DataField', Value: pendingApprovalLevel, ![@UI.Importance]: #High },
-      { $Type: 'UI.DataFieldForAction', Action: 'ProcurementService.approve', Label: '{i18n>ActionApprove}', Inline: true, Criticality: #Positive },
-      { $Type: 'UI.DataFieldForAction', Action: 'ProcurementService.rejectRequisition', Label: '{i18n>ActionReject}', Inline: true, Criticality: #Negative }
+      // Importance #High keeps the buttons on a phone as well - without it
+      // Fiori Elements drops them from the pop-in, and deciding from the phone
+      // is the whole point of an approver inbox.
+      { $Type: 'UI.DataFieldForAction', Action: 'ProcurementService.approve', Label: '{i18n>ActionApprove}', Inline: true, Criticality: #Positive, ![@UI.Importance]: #High },
+      { $Type: 'UI.DataFieldForAction', Action: 'ProcurementService.rejectRequisition', Label: '{i18n>ActionReject}', Inline: true, Criticality: #Negative, ![@UI.Importance]: #High }
     ],
 
     DataPoint #Progress: {

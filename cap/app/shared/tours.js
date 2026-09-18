@@ -35,6 +35,12 @@ sap.ui.define([], function () {
       { key: 'TourShellScript', target: SHELL.script }
     ],
 
+    rules: [
+      { key: 'TourRules1', target: '#acme-rules-current' },
+      { key: 'TourRules2', target: '#acme-rules-upload' },
+      { key: 'TourShellNotifications', target: '#acmeShell .sapFButtonNotifications' }
+    ],
+
     cockpit: [
       { key: 'TourCockpit1', target: '#acme-kpis' },
       { key: 'TourCockpit2', target: '#acme-chart-exposure' },

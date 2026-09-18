@@ -575,3 +575,63 @@ body.sapUiBody {
 }
 .acme-user-switch:hover { background: var(--sapButton_Hover_Background, rgba(0, 0, 0, 0.06)); }
 .acme-user-switch[disabled] { opacity: 0.5; cursor: default; }
+
+/* ------------------------------------------------------------------ */
+/* Rules page (approval matrix)                                        */
+/* ------------------------------------------------------------------ */
+.acme-rules__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+.acme-rules__head h3 { margin: 0; }
+.acme-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  margin: 0.5rem 0;
+}
+.acme-matrix th, .acme-matrix td {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--sapList_BorderColor);
+  text-align: left;
+}
+.acme-matrix th { color: var(--sapContent_LabelColor); font-weight: 600; }
+.acme-matrix td:first-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.acme-level {
+  display: inline-block;
+  min-width: 7rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+.acme-level--1 { background: var(--sapSuccessBackground); color: var(--sapPositiveTextColor, var(--sapPositiveColor)); }
+.acme-level--2 { background: var(--sapWarningBackground); color: var(--sapCriticalTextColor, var(--sapCriticalColor)); }
+.acme-level--3 { background: var(--sapErrorBackground); color: var(--sapNegativeTextColor, var(--sapNegativeColor)); }
+.acme-upload { display: inline-flex; align-items: center; margin: 0.5rem 0 1rem; }
+.acme-findings {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border-left: 4px solid var(--sapNegativeColor, #bb0000);
+  background: var(--sapErrorBackground);
+  font-size: 0.875rem;
+}
+.acme-findings p { margin: 0.375rem 0 0; }
+.acme-findings code { font-family: var(--sapFontMonoFamily, monospace); font-size: 0.75rem; opacity: 0.8; }
+.acme-ok { color: var(--sapPositiveTextColor, var(--sapPositiveColor)); font-weight: 600; }
+.acme-note { color: var(--sapContent_LabelColor); font-size: 0.875rem; }
+@media (max-width: 600px) {
+  .acme-level { min-width: 0; }
+  .acme-level__role { display: none; }
+  .acme-matrix .acme-long { display: none; }
+  .acme-matrix .acme-short { display: inline; }
+  .acme-matrix td:first-child { white-space: normal; }
+  .acme-matrix th, .acme-matrix td { padding: 0.5rem 0.375rem; }
+}
+
+.acme-short { display: none; }

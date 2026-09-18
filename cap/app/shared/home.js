@@ -195,6 +195,14 @@ sap.ui.define([
             sameTab: true
           }),
           linkTile({
+            header: t('AppRules'),
+            subheader: t('HomeTileRulesSub'),
+            footer: t('HomeTileRulesFooter'),
+            icon: 'sap-icon://table-view',
+            href: base + 'rules.html',
+            sameTab: true
+          }),
+          linkTile({
             header: t('AppSolution'),
             subheader: t('HomeTileSolutionSub'),
             footer: t('HomeTileSolutionFooter'),
