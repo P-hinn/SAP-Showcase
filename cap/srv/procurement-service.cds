@@ -65,6 +65,30 @@ service ProcurementService {
   entity RequisitionEvents as projection on db.RequisitionEvents;
 
   /**
+   * The calling user's notifications: addressed to them, or to a role they
+   * hold - never about a requisition they raised themselves when it is an
+   * approval request. Filtered in the database by a before-READ handler.
+   */
+  @readonly
+  entity MyNotifications as projection on db.Notifications {
+    ID, requisition, kind, approvalLevel, createdAt, recipientUser, recipientRole, requester,
+    requisition.requisitionNumber as requisitionNumber,
+    requisition.title             as title
+  };
+
+  @readonly entity NotificationKinds as projection on db.NotificationKinds;
+
+  /** Emitted for every stored notification - the seam for a mail or Work Zone channel (ADR 0010). */
+  event NotificationCreated {
+    requisition_ID    : UUID;
+    requisitionNumber : String(16);
+    kind_code         : String(4);
+    recipientUser     : String(60);
+    recipientRole     : String(40);
+    approvalLevel     : Integer;
+  }
+
+  /**
    * Approver inbox: requisitions waiting for a decision by the calling user.
    *
    * Filtered in the database by a before-READ handler - on the level that has
@@ -184,6 +208,40 @@ service ProcurementService {
     /** Open requisitions whose approval path had to be adjusted. */
     adjustedRequisitions : Integer;
   };
+
+  /**
+   * The approval matrix in force. Maintained as a whole through an Excel
+   * upload: preview first (nothing is stored), then activate.
+   */
+  @readonly entity ApprovalThresholds as projection on db.ApprovalThresholds;
+
+  /** Reads an uploaded workbook and reports what it would change - stores nothing. */
+  @requires: 'ProcurementAdmin'
+  action previewApprovalMatrix(
+    /** The .xlsx file, base64 encoded. */
+    file : LargeString
+  ) returns MatrixPreview;
+
+  /** Replaces the approval matrix with the uploaded one, if it passes every check. */
+  @requires: 'ProcurementAdmin'
+  action activateApprovalMatrix(file : LargeString) returns Integer;
+
+  /** The matrix in force as an .xlsx workbook, base64 encoded - the template for an upload. */
+  function exportApprovalMatrix() returns LargeString;
+
+  type MatrixPreview {
+    tiers    : many {
+      maxValue : Decimal(15, 2);
+      levelA   : Integer;
+      levelB   : Integer;
+      levelC   : Integer;
+    };
+    findings : many {
+      code    : String(5);
+      message : String;
+      row     : Integer;
+    };
+  }
 
   /** Recalculates the risk score of every supplier. Nightly job entry point. */
   @requires: 'ProcurementAdmin'

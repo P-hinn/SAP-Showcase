@@ -1,0 +1,6 @@
+code;locale;name;descr
+NEED;de;Genehmigung erforderlich;Eine Bestellanforderung wartet auf Ihre Genehmigungsstufe
+APPR;de;Genehmigt;Ihre Bestellanforderung ist vollständig genehmigt
+REJE;de;Abgelehnt;Ihre Bestellanforderung wurde abgelehnt
+PATH;de;Genehmigungsweg angepasst;Eine Risikoänderung beim Lieferanten hat Genehmigungsstufen hinzugefügt
+ORDR;de;Bestellung angelegt;Ihre Bestellanforderung wurde in S/4HANA in eine Bestellung umgewandelt

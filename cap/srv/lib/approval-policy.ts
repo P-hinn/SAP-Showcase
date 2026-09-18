@@ -65,12 +65,14 @@ export interface ApprovalTier {
 }
 
 /**
- * The approval matrix.
+ * The built-in approval matrix.
  *
  * Read as: "up to `maxValue` (exclusive) EUR net, a supplier of risk class X
  * requires approval up to level `levels[X]`". The last tier is open ended.
- * Changing a number here changes both the runtime behaviour and the table in
- * docs/business-rules.md, which is generated from this constant.
+ *
+ * On the CAP side this is the default and the seed of the ApprovalThresholds
+ * table: a procurement admin can replace it with a maintained matrix
+ * (approval-matrix.ts checks it first). The ABAP side uses this matrix as is.
  */
 export const APPROVAL_MATRIX: readonly ApprovalTier[] = [
   { maxValue: 5_000, levels: { A: 1, B: 1, C: 2 } },
@@ -171,13 +173,15 @@ function toRiskClass(code: string | null | undefined): RiskClass {
 export function determineRequiredLevel(input: {
   totalValue: Amount;
   riskClass?: string | null;
+  /** A maintained matrix; the built-in one when omitted. */
+  matrix?: readonly ApprovalTier[];
 }): ApprovalLevel {
   const effectiveClass = toRiskClass(input.riskClass);
   const valueInCents = toMinorUnits(input.totalValue);
 
   // The open ended last tier carries Infinity, which has no minor unit
   // representation - it matches unconditionally.
-  const tier = APPROVAL_MATRIX.find(
+  const tier = (input.matrix ?? APPROVAL_MATRIX).find(
     (row) => !Number.isFinite(row.maxValue) || valueInCents < toMinorUnits(row.maxValue)
   );
 
@@ -248,9 +252,14 @@ export function reassessApprovalPath(input: {
   totalValue: Amount;
   riskClass: string | null | undefined;
   requiredLevel: number | null | undefined;
+  matrix?: readonly ApprovalTier[];
 }): ApprovalPathReassessment {
   const before = Number(input.requiredLevel ?? 0);
-  const matrix = determineRequiredLevel({ totalValue: input.totalValue, riskClass: input.riskClass });
+  const matrix = determineRequiredLevel({
+    totalValue: input.totalValue,
+    riskClass: input.riskClass,
+    matrix: input.matrix
+  });
 
   if (input.status === STATUS.DRAFT) {
     return { requiredLevel: matrix, addedLevels: [], changed: matrix !== before };

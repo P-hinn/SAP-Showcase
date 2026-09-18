@@ -3,7 +3,8 @@ import path from 'node:path';
 
 import { lineAmount, sumAmounts } from '../srv/lib/money';
 import { assessSupplier, worstRiskClass } from '../srv/lib/risk-scoring';
-import { determineRequiredLevel, buildApprovalChain } from '../srv/lib/approval-policy';
+import { APPROVAL_MATRIX, determineRequiredLevel, buildApprovalChain } from '../srv/lib/approval-policy';
+import { tiersFromRows } from '../srv/lib/approval-matrix';
 
 /**
  * The sample data in db/data is not decoration - the demo story depends on the
@@ -48,6 +49,16 @@ const itemsByRequisition = items.reduce<Map<string, CsvRow[]>>((map, item) => {
 }, new Map());
 
 describe('sample data', () => {
+
+  it('seeds the maintained approval matrix with exactly the built-in one', () => {
+    const rows = readCsv('acme.procurement-ApprovalThresholds.csv').map((row) => ({
+      maxValue: row.maxValue === '' ? null : row.maxValue,
+      levelA: Number(row.levelA),
+      levelB: Number(row.levelB),
+      levelC: Number(row.levelC)
+    }));
+    expect(tiersFromRows(rows)).toEqual(APPROVAL_MATRIX);
+  });
 
   it('contains something to demo with', () => {
     expect(suppliers.length).toBeGreaterThanOrEqual(5);

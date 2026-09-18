@@ -8,7 +8,8 @@ using {
   acme.procurement.CountryRisks,
   acme.procurement.ApprovalDecisions,
   acme.procurement.ApprovalLevels,
-  acme.procurement.RequisitionEventTypes
+  acme.procurement.RequisitionEventTypes,
+  acme.procurement.NotificationKinds
 } from './code-lists';
 
 /**
@@ -184,4 +185,37 @@ entity Plants : cuid {
   plantCode : String(4) @mandatory;
   name      : String(80) @mandatory;
   country   : Country;
+}
+
+/**
+ * The approval matrix as maintained data. One row per value tier, ordered by
+ * position; `maxValue` is exclusive and empty for the open ended last tier.
+ * Seeded with the built-in matrix (APPROVAL_MATRIX), replaced as a whole by an
+ * upload - never row by row, so a half-maintained matrix cannot exist.
+ */
+entity ApprovalThresholds : managed {
+  key position : Integer;
+      maxValue : Decimal(15, 2);
+      levelA   : Integer @mandatory;
+      levelB   : Integer @mandatory;
+      levelC   : Integer @mandatory;
+}
+
+/**
+ * A message to a person or to everyone holding a role. Written by the service
+ * whenever the audit trail records an event somebody has to act on or hear
+ * about (lib/notifications.ts decides who). The in-app bell reads it; an
+ * outbound channel (mail, SAP Build Work Zone) would subscribe to the same
+ * rows - see ADR 0010.
+ */
+entity Notifications : cuid {
+  requisition   : Association to PurchaseRequisitions @mandatory;
+  kind          : Association to NotificationKinds @mandatory;
+  /** Exactly one of the two is set. */
+  recipientUser : String(60);
+  recipientRole : String(40);
+  /** Copied so a role notification can skip the requester without a join. */
+  requester     : String(60);
+  approvalLevel : Integer;
+  createdAt     : Timestamp @cds.on.insert: $now;
 }

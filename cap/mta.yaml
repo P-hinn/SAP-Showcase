@@ -37,6 +37,9 @@ modules:
     requires:
       - name: acme-procurement-db
       - name: acme-procurement-auth
+      # S/4HANA is reached through the BTP destination "S4HANA"
+      # (package.json > cds.requires, ADR 0009).
+      - name: acme-procurement-destination
 
   # ------------------------------------------------------- HDI deployer (HANA)
   - name: acme-procurement-db-deployer
@@ -63,3 +66,13 @@ resources:
       config:
         xsappname: acme-procurement-${org}-${space}
         tenant-mode: dedicated
+
+  # The destination "S4HANA" (URL, authentication) is created in the BTP
+  # cockpit, not here: credentials of a customer system do not belong in a
+  # repository. An on-premise S/4HANA additionally needs the connectivity
+  # service and a Cloud Connector.
+  - name: acme-procurement-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite

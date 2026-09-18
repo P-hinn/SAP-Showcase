@@ -69,3 +69,15 @@ entity RequisitionEventTypes : CodeList {
   };
   criticality : Integer;
 }
+
+/** Kinds of notifications (lib/notifications.ts). */
+entity NotificationKinds : CodeList {
+  key code : String(4) enum {
+    approvalNeeded = 'NEED';
+    approved       = 'APPR';
+    rejected       = 'REJE';
+    pathAdjusted   = 'PATH';
+    ordered        = 'ORDR';
+  };
+  criticality : Integer;
+}

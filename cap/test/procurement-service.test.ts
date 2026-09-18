@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import cds from '@sap/cds';
+import ExcelJS from 'exceljs';
 
 // --with-mocks serves the S/4HANA APIs (srv/external) in-process, exactly as
 // `npm start` does, so the integration is tested without a remote system.
@@ -733,6 +734,114 @@ describe('ProcurementService', () => {
       await POST('/demo/resetData', {}, AS.rita);
       const { data: body } = await GET('/procurement/Suppliers/$count', AS.rita);
       expect(Number(body)).to.equal(8);
+    });
+  });
+
+  describe('approval matrix maintenance', () => {
+    type Rows = Array<Array<string | number>>;
+    const workbook = async (rows: Rows): Promise<string> => {
+      const book = new ExcelJS.Workbook();
+      const sheet = book.addWorksheet('Matrix');
+      for (const row of rows) sheet.addRow(row);
+      return Buffer.from(await book.xlsx.writeBuffer()).toString('base64');
+    };
+    const HEADER = ['Up to', 'A', 'B', 'C'];
+
+    it('exports the matrix in force as a workbook that previews without findings', async () => {
+      const { data: exported } = await GET('/procurement/exportApprovalMatrix()', AS.rita);
+      const { data: preview } = await POST('/procurement/previewApprovalMatrix', { file: exported.value }, AS.mona);
+      expect(preview.findings).to.deep.equal([]);
+      expect(preview.tiers.map((tier: { levelC: number }) => tier.levelC)).to.deep.equal([2, 2, 3, 3]);
+    });
+
+    it('round-trips the German export too, whose last row says "und darüber"', async () => {
+      const german = { ...AS.mona, headers: { 'Accept-Language': 'de' } };
+      const { data: exported } = await GET('/procurement/exportApprovalMatrix()', german);
+      const { data: preview } = await POST('/procurement/previewApprovalMatrix', { file: exported.value }, german);
+      expect(preview.findings).to.deep.equal([]);
+    });
+
+    it('previews a broken matrix with localized findings and stores nothing', async () => {
+      const file = await workbook([HEADER, [5000, 2, 1, 2], ['', 3, 3, 3]]);
+      const { data: preview } = await POST('/procurement/previewApprovalMatrix', { file }, {
+        ...AS.mona,
+        headers: { 'Accept-Language': 'de' }
+      });
+      expect(preview.findings).to.have.length(1);
+      expect(preview.findings[0]).to.deep.include({ code: 'PR425', row: 2 });
+      expect(preview.findings[0].message).to.match(/^Ein riskanterer Lieferant/);
+
+      const { data: stored } = await GET('/procurement/ApprovalThresholds?$orderby=position', AS.mona);
+      expect(stored.value.map((row: { levelA: number }) => row.levelA)).to.deep.equal([1, 1, 2, 3]);
+    });
+
+    it('refuses to activate a matrix that has findings', async () => {
+      const file = await workbook([HEADER, [5000, 1, 1, 1]]);
+      const { status, codes } = await expectFailure(POST('/procurement/activateApprovalMatrix', { file }, AS.mona));
+      expect(status).to.equal(400);
+      expect(codes).to.include('PR424');
+    });
+
+    it('activates a valid matrix, which then decides new submissions', async () => {
+      const file = await workbook([HEADER, ['', 3, 3, 3]]);
+      const { data: result } = await POST('/procurement/activateApprovalMatrix', { file }, AS.mona);
+      expect(result.value).to.equal(1);
+
+      await makeDeliverable(PR.draftSmall);
+      const { data: submitted } = await POST(action(PR.draftSmall, 'submit'), {}, AS.rita);
+      expect(submitted.requiredApprovalLevel_code).to.equal(3);
+    });
+
+    it('keeps requisitions already in approval on the path they were submitted with', async () => {
+      const file = await workbook([HEADER, ['', 3, 3, 3]]);
+      await POST('/procurement/activateApprovalMatrix', { file }, AS.mona);
+      const { data: body } = await GET(`/procurement/${active(PR_HYDRAULICS)}?$select=requiredApprovalLevel_code`, AS.mona);
+      expect(body.requiredApprovalLevel_code).to.equal(2);
+    });
+
+    it('rejects a file that is not a workbook', async () => {
+      const file = Buffer.from('not an excel file').toString('base64');
+      const { codes } = await expectFailure(POST('/procurement/previewApprovalMatrix', { file }, AS.mona));
+      expect(codes).to.include('PR427');
+    });
+
+    it('is reserved for the procurement admin', async () => {
+      const file = await workbook([HEADER, ['', 3, 3, 3]]);
+      const { status } = await expectFailure(POST('/procurement/activateApprovalMatrix', { file }, AS.carl));
+      expect(status).to.equal(403);
+    });
+  });
+
+  describe('notifications', () => {
+    const inbox = async (as: typeof AS.rita): Promise<string[]> => {
+      const { data: body } = await GET('/procurement/MyNotifications?$select=kind_code,requisitionNumber&$orderby=createdAt', as);
+      return body.value.map((row: { kind_code: string; requisitionNumber: string }) => `${row.kind_code} ${row.requisitionNumber}`);
+    };
+
+    it('shows approvers the requests for their roles and requesters their outcomes', async () => {
+      expect(await inbox(AS.dana)).to.deep.equal(['NEED PR-2026-000002', 'NEED PR-2026-000006']);
+      expect(await inbox(AS.tom)).to.deep.equal(['REJE PR-2026-000004']);
+      expect(await inbox(AS.rita)).to.deep.equal(['ORDR PR-2026-000005']);
+    });
+
+    it('asks level 1 on submit and never shows it to the requester', async () => {
+      await makeDeliverable(PR.draftSmall);
+      await POST(action(PR.draftSmall, 'submit'), {}, AS.rita);
+      expect(await inbox(AS.tom)).to.include('NEED PR-2026-000001');
+      expect(await inbox(AS.rita)).to.not.include('NEED PR-2026-000001');
+    });
+
+    it('does not ask an approver about a requisition they raised themselves', async () => {
+      await UPDATE(HEADERS).set({ requester: 'dana', createdBy: 'dana' }).where({ ID: PR.draftSmall });
+      await makeDeliverable(PR.draftSmall);
+      await POST(action(PR.draftSmall, 'submit'), {}, AS.dana);
+      expect(await inbox(AS.dana)).to.not.include('NEED PR-2026-000001');
+      expect(await inbox(AS.tom)).to.include('NEED PR-2026-000001');
+    });
+
+    it('tells the requester when the last level approves', async () => {
+      await POST(`/procurement/MyApprovalTasks(${PR_HYDRAULICS})/ProcurementService.approve`, { comment: 'ok' }, AS.dana);
+      expect(await inbox(AS.rita)).to.include('APPR PR-2026-000006');
     });
   });
 });

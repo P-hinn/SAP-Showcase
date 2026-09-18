@@ -21,7 +21,7 @@
     },
     {
       "name": "$XSAPPNAME.ProcurementAdmin",
-      "description": "Maintain supplier master data and run the risk recalculation"
+      "description": "Maintain supplier master data, ratings and the approval matrix; run the risk recalculation and the S/4HANA sync"
     }
   ],
   "attributes": [],

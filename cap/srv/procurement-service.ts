@@ -2,9 +2,11 @@ import cds from '@sap/cds';
 
 import { lineAmount, sumAmounts, toMinorUnits, type Amount } from './lib/money';
 import * as policy from './lib/approval-policy';
-import type { ValidatableItem } from './lib/approval-policy';
+import type { ApprovalTier, ValidatableItem } from './lib/approval-policy';
 import * as risk from './lib/risk-scoring';
 import type { RiskClass } from './lib/risk-scoring';
+import * as matrixHandlers from './matrix-handlers';
+import { recordNotifications, restrictToMyNotifications } from './notification-handlers';
 import * as s4 from './s4-handlers';
 import {
   EVENT,
@@ -64,6 +66,8 @@ export default class ProcurementService extends cds.ApplicationService {
     CostCenters: any;
     FinancialRatings: any;
     Countries: any;
+    ApprovalThresholds: any;
+    Notifications: any;
   };
 
   override async init(): Promise<void> {
@@ -75,8 +79,11 @@ export default class ProcurementService extends cds.ApplicationService {
       MyApprovalTasks,
       Suppliers,
       CostCenters,
-      FinancialRatings
+      FinancialRatings,
+      ApprovalThresholds,
+      MyNotifications
     } = this.entities as Record<string, any>;
+    const { Notifications } = cds.entities('acme.procurement') as Record<string, any>;
     const { Countries } = cds.entities('sap.common') as Record<string, any>;
 
     this.entityRefs = {
@@ -87,7 +94,9 @@ export default class ProcurementService extends cds.ApplicationService {
       Suppliers,
       CostCenters,
       FinancialRatings,
-      Countries
+      Countries,
+      ApprovalThresholds,
+      Notifications
     };
 
     // ---------------------------------------------------------------- reads
@@ -122,6 +131,8 @@ export default class ProcurementService extends cds.ApplicationService {
       query.where({ pendingApprovalLevel: { in: levels.length ? levels : [-1] } });
       query.where({ requester: { '!=': req.user.id }, createdBy: { '!=': req.user.id } });
     });
+
+    this.before('READ', MyNotifications, (req) => restrictToMyNotifications(req));
 
     // ------------------------------------------------------- determinations
     // Runs on draft activation and on every direct write. Keeps item numbers,
@@ -158,6 +169,9 @@ export default class ProcurementService extends cds.ApplicationService {
     this.on('updateFinancialRating', Suppliers, (req) => s4.updateFinancialRating(req, this.s4Deps()));
     this.on('syncSuppliersFromS4', (req) => s4.syncSuppliersFromS4(req, this.s4Deps()));
     this.on('recalculateAllSupplierRisks', (req) => this.onRecalculateAllRisks(req));
+    this.on('previewApprovalMatrix', (req) => matrixHandlers.previewApprovalMatrix(req));
+    this.on('activateApprovalMatrix', (req) => matrixHandlers.activateApprovalMatrix(req, ApprovalThresholds));
+    this.on('exportApprovalMatrix', (req) => matrixHandlers.exportApprovalMatrix(req, ApprovalThresholds));
     this.on('currentUser', (req) => ({ id: req.user.id, roles: knownRolesOf(req.user) }));
 
     await super.init();
@@ -216,7 +230,8 @@ export default class ProcurementService extends cds.ApplicationService {
     data.supplierRiskClass_code = risk.worstRiskClass(supplierIds.map((sid) => riskClasses.get(sid)));
     data.requiredApprovalLevel_code = policy.determineRequiredLevel({
       totalValue: data.totalValue,
-      riskClass: data.supplierRiskClass_code
+      riskClass: data.supplierRiskClass_code,
+      matrix: await this.currentMatrix()
     });
   }
 
@@ -484,6 +499,11 @@ export default class ProcurementService extends cds.ApplicationService {
   // Data access helpers
   // ==================================================================
 
+  /** The approval matrix in force - four rows, read per use rather than cached, so an activation applies at once. */
+  private currentMatrix(): Promise<ApprovalTier[]> {
+    return matrixHandlers.loadMatrix(this.entityRefs.ApprovalThresholds);
+  }
+
   /** Reads the active (non draft) header. */
   async readActive(id: string | undefined): Promise<RequisitionRow | undefined> {
     return SELECT.one.from(this.entityRefs.PurchaseRequisitions).where({ ID: id });
@@ -550,7 +570,7 @@ export default class ProcurementService extends cds.ApplicationService {
       items: enriched,
       totalValue,
       riskClass,
-      requiredLevel: policy.determineRequiredLevel({ totalValue, riskClass })
+      requiredLevel: policy.determineRequiredLevel({ totalValue, riskClass, matrix: await this.currentMatrix() })
     };
   }
 
@@ -695,6 +715,7 @@ export default class ProcurementService extends cds.ApplicationService {
     for (const requisition of requisitions) {
       const derived = await this.recalculate(requisition);
       const path = policy.reassessApprovalPath({
+        matrix: await this.currentMatrix(),
         status: requisition.status_code,
         totalValue: derived.totalValue,
         riskClass: derived.riskClass,
@@ -743,6 +764,7 @@ export default class ProcurementService extends cds.ApplicationService {
       approvalLevel: details.approvalLevel ?? null,
       note: details.note ?? null
     });
+    await recordNotifications(this, this.entityRefs, requisitionId, eventType, details.approvalLevel);
   }
 
   // ==================================================================
