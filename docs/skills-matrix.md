@@ -57,9 +57,17 @@ thing. Every row points at code, not at a claim.
 | Virtual elements | `riskScoreCriticality` + the before-READ column injection |
 | Fiori Elements annotations | `cap/app/*/annotations.cds` |
 | Side effects, value helps, criticality | same files |
-| Fiori Elements app scaffolding | `cap/app/*/webapp/` |
+| Fiori Elements app scaffolding | `cap/app/*/webapp/` (three apps: requisitions, approver inbox, suppliers) |
+| List report views with counts, inline actions, row links | `cap/app/purchase-requisitions/annotations.cds`, `cap/app/approvals/annotations.cds` |
+| Calculated elements on read | `pendingApprovalLevel`, `onTimeDeliveryPercent` |
+| i18n end to end: labels, code list texts, server messages | `cap/_i18n/`, `cap/db/data/*_texts.csv` |
+| Remote services against S/4HANA A2X APIs | `cap/srv/external/API_*.cds`, mocked from `srv/external/data` |
+| Mapping to SAP APIs as pure, tested functions | `cap/srv/lib/s4-mapping.ts` |
+| Mock behaviour for an external service | `cap/srv/external/API_PURCHASEORDER_PROCESS_SRV.ts` |
+| Custom bootstrap middleware | `cap/srv/server.ts`, `cap/srv/demo-mode.ts` |
+| UI5 beyond Fiori Elements: shell, tiles, cockpit, tour | `cap/app/shared/` |
 | MTA and XSUAA descriptors | `cap/mta.yaml`, `cap/xs-security.json` |
-| Jest + ts-jest, 174 type checked tests | `cap/test/` |
+| Jest + ts-jest, 212 type checked tests | `cap/test/` |
 | ESLint flat config, TypeScript | `cap/eslint.config.ts` |
 
 ## Engineering practice
@@ -73,4 +81,5 @@ thing. Every row points at code, not at a claim.
 | Coverage floor on the rule modules | `cap/jest.config.ts` |
 | CI on every push | `.github/workflows/ci.yml` |
 | Reproducible demo evidence | [`demo-walkthrough.md`](demo-walkthrough.md), recorded against the running service |
-| Known limitations stated, not hidden | [ADR 0005](adr/0005-number-assignment.md), `abap/README.md` |
+| Known limitations stated, not hidden | [ADR 0005](adr/0005-number-assignment.md), [ADR 0009](adr/0009-s4-integration-via-released-apis.md), `abap/README.md` |
+| Parity between the stacks stated explicitly | [`business-rules.md`](business-rules.md), section "Parity" |

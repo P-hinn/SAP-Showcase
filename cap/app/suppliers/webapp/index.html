@@ -4,21 +4,29 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Supplier Risk</title>
+  <link rel="icon" href="../../shared/logo.svg">
+  <link rel="stylesheet" href="../../shared/shell.css">
+  <!-- Language and theme have to be decided before UI5 starts. -->
+  <script src="../../shared/preboot.js"></script>
+  <!-- SAPUI5, not OpenUI5: sap.fe.templates (Fiori Elements) ships with
+       SAPUI5 only and is not part of the OpenUI5 distribution.
+       Saved filter variants live in the browser (LocalStorageConnector):
+       there is no SAP key user / layered repository backend in this demo. -->
   <script
     id="sap-ui-bootstrap"
-    <!-- SAPUI5, not OpenUI5: sap.fe.templates (Fiori Elements) ships with
-         SAPUI5 only and is not part of the OpenUI5 distribution. -->
     src="https://ui5.sap.com/resources/sap-ui-core.js"
-    data-sap-ui-theme="sap_horizon"
     data-sap-ui-async="true"
     data-sap-ui-compat-version="edge"
     data-sap-ui-frame-options="trusted"
-    data-sap-ui-on-init="module:sap/ui/core/ComponentSupport"
-    data-sap-ui-resource-roots='{"acme.procurement.suppliers": "./"}'>
+    data-sap-ui-flexibility-services='[{"connector": "LocalStorageConnector"}]'
+    data-sap-ui-on-init="module:acme/shared/shell"
+    data-sap-ui-resource-roots='{"acme.procurement.suppliers": "./", "acme.shared": "../../shared/"}'>
   </script>
 </head>
 <body class="sapUiBody">
+  <div id="acme-shell" data-app="suppliers"></div>
   <div
+    class="acme-content"
     data-sap-ui-component
     data-name="acme.procurement.suppliers"
     data-id="container"

@@ -55,3 +55,17 @@ entity ApprovalLevels : CodeList {
   /** Role a user needs in order to decide on this level. */
   requiredRole : String(40);
 }
+
+/** Kinds of entries in the audit trail of a requisition. */
+entity RequisitionEventTypes : CodeList {
+  key code : String(4) enum {
+    submitted    = 'SUBM';
+    approved     = 'APPR';
+    rejected     = 'REJE';
+    withdrawn    = 'WDRW';
+    reopened     = 'REOP';
+    ordered      = 'ORDR';
+    pathAdjusted = 'PATH';
+  };
+  criticality : Integer;
+}

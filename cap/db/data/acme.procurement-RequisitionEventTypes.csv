@@ -1,0 +1,8 @@
+code;name;descr;criticality
+SUBM;Submitted;Submitted for approval;0
+APPR;Approved;An approval level signed off;3
+REJE;Rejected;An approval level rejected the requisition;1
+WDRW;Withdrawn;The requester pulled the requisition back into editing;0
+REOP;Reopened;A rejected requisition was put back into draft;0
+ORDR;Purchase order created;Converted into a purchase order in S/4HANA;3
+PATH;Approval path adjusted;The required approval level changed after a supplier risk change;2

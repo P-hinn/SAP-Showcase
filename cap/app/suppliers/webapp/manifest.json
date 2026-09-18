@@ -37,7 +37,12 @@
       "i18n": {
         "type": "sap.ui.model.resource.ResourceModel",
         "settings": {
-          "bundleName": "acme.procurement.suppliers.i18n.i18n"
+          "bundleName": "acme.procurement.suppliers.i18n.i18n",
+          "supportedLocales": [
+            "",
+            "de"
+          ],
+          "fallbackLocale": ""
         }
       },
       "": {
@@ -76,11 +81,45 @@
             "settings": {
               "contextPath": "/Suppliers",
               "variantManagement": "Page",
-              "initialLoad": true,
+              "initialLoad": "Enabled",
               "navigation": {
                 "Suppliers": {
                   "detail": {
                     "route": "SuppliersObjectPage"
+                  }
+                }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable",
+                    "enableExport": true
+                  },
+                  "columns": {
+                    "DataFieldForAnnotation::FieldGroup::Identity": {
+                      "width": "15rem"
+                    },
+                    "DataField::country_code": {
+                      "width": "9rem"
+                    },
+                    "DataField::financialRating_code": {
+                      "width": "7rem"
+                    },
+                    "DataFieldForAnnotation::DataPoint::OnTimeDelivery": {
+                      "width": "8rem"
+                    },
+                    "DataField::qualityIncidents12M": {
+                      "width": "8rem"
+                    },
+                    "DataFieldForAnnotation::DataPoint::RiskScore": {
+                      "width": "8rem"
+                    },
+                    "DataField::riskClass_code": {
+                      "width": "9rem"
+                    },
+                    "DataField::isBlocked": {
+                      "width": "8rem"
+                    }
                   }
                 }
               }

@@ -1,0 +1,4 @@
+code;locale;name;descr
+1;de;L1 - Teamleitung;Genehmigt den Alltagsbedarf bis zur ersten Wertgrenze
+2;de;L2 - Abteilungsleitung;Genehmigt mittlere Bedarfe und alle Lieferanten mit mittlerem Risiko
+3;de;L3 - CFO;Genehmigt Investitionen und alle Lieferanten mit hohem Risiko

@@ -1,0 +1,5 @@
+code;locale;name;descr
+PEND;de;Offen;Wartet auf eine Entscheidung
+APPR;de;Genehmigt;Vom zuständigen Genehmiger genehmigt
+REJE;de;Abgelehnt;Abgelehnt - die Bestellanforderung geht zurück an den Anforderer
+SKIP;de;Übersprungen;Nach einer Neuberechnung des Genehmigungswegs nicht mehr erforderlich

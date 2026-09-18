@@ -369,6 +369,36 @@ describe('approval policy', () => {
     });
   });
 
+  describe('reassessApprovalPath', () => {
+    const reassess = (status: string, totalValue: number, riskClass: string, requiredLevel: number) =>
+      policy.reassessApprovalPath({ status, totalValue, riskClass, requiredLevel });
+
+    it('lets a draft follow the matrix in both directions', () => {
+      expect(reassess(STATUS.DRAFT, 30000, 'C', 2)).toEqual({ requiredLevel: 3, addedLevels: [], changed: true });
+      expect(reassess(STATUS.DRAFT, 30000, 'A', 3)).toEqual({ requiredLevel: 2, addedLevels: [], changed: true });
+    });
+
+    it('appends the missing levels to a requisition in approval when the supplier got riskier', () => {
+      expect(reassess(STATUS.IN_APPROVAL, 31800, 'C', 2)).toEqual({ requiredLevel: 3, addedLevels: [3], changed: true });
+      expect(reassess(STATUS.IN_APPROVAL, 4000, 'C', 1)).toEqual({ requiredLevel: 2, addedLevels: [2], changed: true });
+    });
+
+    it('never shortens the path of a requisition that is already in approval', () => {
+      expect(reassess(STATUS.IN_APPROVAL, 31800, 'A', 3)).toEqual({ requiredLevel: 3, addedLevels: [], changed: false });
+    });
+
+    it('leaves approved, rejected and closed requisitions alone', () => {
+      for (const status of [STATUS.APPROVED, STATUS.REJECTED, STATUS.CLOSED]) {
+        expect(reassess(status, 150000, 'C', 1)).toEqual({ requiredLevel: 1, addedLevels: [], changed: false });
+      }
+    });
+
+    it('reports no change when the level stays the same', () => {
+      expect(reassess(STATUS.IN_APPROVAL, 31800, 'B', 2).changed).toBe(false);
+      expect(reassess(STATUS.DRAFT, 31800, 'B', 2).changed).toBe(false);
+    });
+  });
+
   describe('approval chain arithmetic', () => {
     it('starts at level 1', () => {
       expect(policy.nextApprovalLevel(0)).toBe(1);

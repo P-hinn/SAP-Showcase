@@ -140,10 +140,69 @@ The budget is committed at the last signature and not when the purchase order
 is created. Otherwise two requisitions could both pass the budget check against
 the same remaining amount and both be approved.
 
-## 7. Document numbers
+## 7. A supplier risk change acts on open requisitions
+
+The risk class of a supplier is not only read at submit time. Whenever it
+changes - through `updateFinancialRating` (the rating agency feed),
+`recalculateRisk`, or a sync that brings a purchasing block from S/4HANA - every
+**draft** and **in approval** requisition with an item from that supplier is
+re-derived:
+
+| Status of the requisition | Supplier got riskier | Supplier got safer |
+|---|---|---|
+| Draft | new level from the matrix | new level from the matrix |
+| In approval | missing levels are **added** as pending steps | path stays as submitted |
+| Approved, rejected, closed | unchanged | unchanged |
+
+Signatures already given stay valid, and an approver who has been asked is
+never silently removed. Every adjustment is written to the audit trail of the
+requisition (event `PATH`) with supplier, old and new risk class and old and
+new level.
+
+> `reassessApprovalPath()` in `cap/srv/lib/approval-policy.ts`, with the
+> reasoning in [`adr/0008`](adr/0008-risk-changes-never-shorten-the-path.md).
+> **CAP side only** - see the parity note below.
+
+## 8. Audit trail
+
+Every requisition carries an append-only history: submitted, approved,
+rejected, withdrawn, reopened, ordered - plus the automatic `PATH` adjustments
+above. Each entry holds the time, the user, the approval level it refers to and
+a language neutral detail (comment, rejection reason, purchase order number, or
+what changed).
+
+The trail is written by the service, never by a client: `RequisitionEvents` is
+read-only in the OData service.
+
+## 9. Purchase order creation
+
+`close` converts an approved requisition into purchase orders in S/4HANA - one
+per supplier, because a purchase order has exactly one supplier. The order
+numbers come back from S/4HANA and are stored on the requisition and on each
+item, and the requisition moves to `Closed`. If S/4HANA refuses, nothing is
+stored and the requisition stays approved (`PR406`).
+
+> `purchaseOrdersFor()` in `cap/srv/lib/s4-mapping.ts`,
+> [`adr/0009`](adr/0009-s4-integration-via-released-apis.md). **CAP side only.**
+
+## 10. Document numbers
 
 `PR-<year>-<6 digits>`, assigned on submit, kept on resubmission. A rejected and
 reworked requisition keeps its number; a copy gets a new one.
 
 > The demo implementation reads the current maximum. A productive one uses a
 > number range object - see [`adr/0005`](adr/0005-number-assignment.md).
+
+---
+
+## Parity between the two implementations
+
+Rules 1 to 6 and 10 are implemented **twice** - in `cap/srv/lib` and in
+`abap/src/classes` - and tested twice, with the same message numbers on both
+sides (CI compares them).
+
+Rules 7 to 9 (risk propagation, audit trail, purchase order creation) exist on
+the **CAP side only**. They were built for the customer demo, where the
+side-by-side stack is the one that runs. Porting them to RAP is a known gap,
+not an oversight: the rules themselves are framework free and would move as
+they are, the plumbing (determinations, the S/4HANA call) would be rewritten.

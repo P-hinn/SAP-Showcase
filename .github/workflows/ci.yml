@@ -44,6 +44,11 @@ jobs:
       - name: Compile the CDS model and the OData metadata
         run: npm run compile:check
 
+      # A missing German label breaks no test - it shows up in front of a
+      # customer as an English word in a German screen.
+      - name: Translations complete in both languages
+        run: npm run check:i18n
+
       - name: Test
         run: npm run test:coverage
 

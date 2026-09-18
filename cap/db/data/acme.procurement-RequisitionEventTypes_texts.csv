@@ -1,0 +1,8 @@
+code;locale;name;descr
+SUBM;de;Eingereicht;Zur Genehmigung eingereicht
+APPR;de;Genehmigt;Eine Genehmigungsstufe hat freigegeben
+REJE;de;Abgelehnt;Eine Genehmigungsstufe hat abgelehnt
+WDRW;de;Zurückgezogen;Der Anforderer hat die Bestellanforderung zurück in die Bearbeitung geholt
+REOP;de;Zur Überarbeitung geöffnet;Eine abgelehnte Bestellanforderung wurde wieder zum Entwurf
+ORDR;de;Bestellung angelegt;In eine Bestellung in S/4HANA umgewandelt
+PATH;de;Genehmigungsweg angepasst;Die erforderliche Stufe hat sich nach einer Risikoänderung beim Lieferanten geändert

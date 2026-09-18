@@ -94,3 +94,24 @@ in the build pipeline. The CAP implementation in `../cap` is the part that is
 executed and tested on every commit; the value of this package is that it shows
 the same problem solved on-stack, and that the two solutions can be read side
 by side.
+
+## What the CAP side has and this one does not
+
+The customer facing part of the demo was built on the side-by-side stack, so
+these exist only there:
+
+- the approver inbox (`MyApprovalTasks`),
+- the audit trail per requisition (`RequisitionEvents`),
+- automatic adjustment of the approval path when a supplier's risk changes
+  ([ADR 0008](../docs/adr/0008-risk-changes-never-shorten-the-path.md)),
+- purchase order creation and supplier sync through the S/4HANA OData APIs
+  ([ADR 0009](../docs/adr/0009-s4-integration-via-released-apis.md)).
+
+On-stack, the last point would not be an integration at all: RAP writes the
+purchase order with EML against the released purchase order business object in
+the same system. That is exactly the trade-off
+[ADR 0001](../docs/adr/0001-onstack-vs-sidebyside.md) is about.
+
+The rules those features rest on are framework free on the CAP side, so a port
+would move `reassessApprovalPath()` into `ZCL_PR_APPROVAL_POLICY` unchanged and
+rewrite only the plumbing around it.
