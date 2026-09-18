@@ -14,3 +14,5 @@ what it costs, and what would make us decide differently.
 | [0007](0007-typescript.md) | TypeScript on the CAP side, pinned to 6.0.3 | accepted |
 | [0008](0008-risk-changes-never-shorten-the-path.md) | A risk change tightens an open approval path, never shortens it | accepted |
 | [0009](0009-s4-integration-via-released-apis.md) | Integration through released S/4HANA OData APIs, mocked locally | accepted |
+| [0010](0010-notifications-to-roles-in-app-first.md) | Notifications go to roles, and stay in the app for now | accepted |
+| [0011](0011-maintained-approval-matrix.md) | The approval matrix is maintained data, replaced as a whole | accepted |

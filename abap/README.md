@@ -105,7 +105,11 @@ these exist only there:
 - automatic adjustment of the approval path when a supplier's risk changes
   ([ADR 0008](../docs/adr/0008-risk-changes-never-shorten-the-path.md)),
 - purchase order creation and supplier sync through the S/4HANA OData APIs
-  ([ADR 0009](../docs/adr/0009-s4-integration-via-released-apis.md)).
+  ([ADR 0009](../docs/adr/0009-s4-integration-via-released-apis.md)),
+- notifications to approvers and requesters
+  ([ADR 0010](../docs/adr/0010-notifications-to-roles-in-app-first.md)),
+- the approval matrix maintained in Excel instead of in code
+  ([ADR 0011](../docs/adr/0011-maintained-approval-matrix.md)).
 
 On-stack, the last point would not be an integration at all: RAP writes the
 purchase order with EML against the released purchase order business object in

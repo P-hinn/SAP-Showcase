@@ -26,7 +26,7 @@ hold, not to replace them.
 | Skill | The mistake it prevents |
 |---|---|
 | **business-rule** | Changing a rule in one of the five places it lives. A threshold without the ABAP counterpart, without the fixture recalculation, without the German message. |
-| **fiori-app** | The two Fiori Elements traps that cost the most time here: columns that silently vanish into the pop-in area when the widths add up to more than the screen, and draft events firing on the `.drafts` entity rather than the active one. |
+| **fiori-app** | The Fiori Elements traps that cost the most time here: columns that silently vanish into the pop-in area, draft events firing on the `.drafts` entity, action buttons that disappear on a phone, and the ShellBar bell breaking the phone overflow menu. |
 | **s4-integration** | Adding an S/4HANA call without a mock, without a pure mapping function, or with a half-written result when the remote side fails. |
 | **demo-screenshots** | Hand-made screenshots. Every image in the README is generated from the running app, so it cannot drift from reality. |
 
@@ -51,7 +51,7 @@ build does not enforce is a preference:
 1. Describe the change in business terms; the skill supplies the checklist for
    that kind of change.
 2. Write the rule framework-free, then the plumbing around it.
-3. `/verify` - types, lint, CDS compile, translations, 212 tests, production
+3. `/verify` - types, lint, CDS compile, translations, every test, production
    build. Nothing is "done" on a partial run.
 4. For anything visible: open it in the browser, then `/screenshots`.
 5. Write down what it costs. An asymmetry, a shortcut or an untested assumption

@@ -37,6 +37,8 @@ cheap option.
 
 > Implemented in `cap/srv/lib/approval-policy.ts` → `APPROVAL_MATRIX` and
 > `abap/src/classes/zcl_pr_approval_policy.clas.abap` → `APPROVAL_MATRIX( )`.
+> On the CAP side this is the default; a procurement admin can replace it with
+> a maintained matrix - see section 11.
 > Boundaries are exclusive; 4,999.99 EUR is still the cheaper tier.
 
 ## 2. Supplier risk score
@@ -193,6 +195,58 @@ reworked requisition keeps its number; a copy gets a new one.
 > The demo implementation reads the current maximum. A productive one uses a
 > number range object - see [`adr/0005`](adr/0005-number-assignment.md).
 
+## 11. Maintaining the approval matrix
+
+The matrix in section 1 is the seed of the table `ApprovalThresholds`. A
+procurement admin replaces it through an Excel upload:
+
+1. **Export** the matrix in force (anybody may): one row per value tier,
+   columns "net value up to (exclusive)" and the level for risk class A, B, C.
+   The last row says "and above" / "und darüber".
+2. **Upload** the edited file. It is only previewed - parsed and checked,
+   nothing stored.
+3. **Activate** it, if the preview shows no findings. The matrix is replaced as
+   a whole.
+
+A matrix is refused when:
+
+| Code | Rule |
+|---|---|
+| `PR420` | It has no tiers. |
+| `PR421` | A value limit is not a positive amount, or a row other than the last is open. |
+| `PR422` | A level is not 1, 2 or 3. |
+| `PR423` | The value limits do not rise from row to row. |
+| `PR424` | The last row has an upper limit. |
+| `PR425` | Within a tier, a riskier supplier needs fewer levels (A ≤ B ≤ C is violated). |
+| `PR426` | Down the tiers, a higher value needs fewer levels than the row above. |
+| `PR427` | The file is not an `.xlsx` workbook of at most 512 KB. |
+
+A new matrix applies to drafts and to every submission from then on.
+Requisitions already in approval keep their path.
+
+> `cap/srv/lib/approval-matrix.ts`, [`adr/0011`](adr/0011-maintained-approval-matrix.md).
+> **CAP side only.**
+
+## 12. Notifications
+
+| Event | Who is notified |
+|---|---|
+| Submitted | the role of level 1 |
+| Approved, chain not complete | the role of the next level |
+| Approved, last level | the requester |
+| Rejected | the requester |
+| Approval path adjusted (section 7) | the requester |
+| Purchase order created | the requester |
+| Withdrawn, reopened | nobody - the requester did it |
+
+An approval request is never shown to its own requester, even if they hold the
+role. Notifications are shown in the app; an outbound channel subscribes to the
+`NotificationCreated` event.
+
+> `cap/srv/lib/notifications.ts`, [`adr/0010`](adr/0010-notifications-to-roles-in-app-first.md).
+> **CAP side only.**
+
+
 ---
 
 ## Parity between the two implementations
@@ -201,8 +255,9 @@ Rules 1 to 6 and 10 are implemented **twice** - in `cap/srv/lib` and in
 `abap/src/classes` - and tested twice, with the same message numbers on both
 sides (CI compares them).
 
-Rules 7 to 9 (risk propagation, audit trail, purchase order creation) exist on
-the **CAP side only**. They were built for the customer demo, where the
+Rules 7 to 9 and 11 to 12 (risk propagation, audit trail, purchase order
+creation, the maintained approval matrix, notifications) exist on the **CAP
+side only**. They were built for the customer demo, where the
 side-by-side stack is the one that runs. Porting them to RAP is a known gap,
 not an oversight: the rules themselves are framework free and would move as
 they are, the plumbing (determinations, the S/4HANA call) would be rewritten.

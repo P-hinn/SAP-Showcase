@@ -66,8 +66,11 @@ thing. Every row points at code, not at a claim.
 | Mock behaviour for an external service | `cap/srv/external/API_PURCHASEORDER_PROCESS_SRV.ts` |
 | Custom bootstrap middleware | `cap/srv/server.ts`, `cap/srv/demo-mode.ts` |
 | UI5 beyond Fiori Elements: shell, tiles, cockpit, tour | `cap/app/shared/` |
+| Excel import and export with validation and preview | `cap/srv/matrix-workbook.ts`, `cap/srv/lib/approval-matrix.ts`, `cap/app/shared/rules.js` |
+| Role-addressed notifications, service events | `cap/srv/lib/notifications.ts`, `cap/srv/notification-handlers.ts` |
+| `@PersonalData` annotations, destination service in the MTA | `cap/db/data-privacy.cds`, `cap/mta.yaml` |
 | MTA and XSUAA descriptors | `cap/mta.yaml`, `cap/xs-security.json` |
-| Jest + ts-jest, 212 type checked tests | `cap/test/` |
+| Jest + ts-jest, 261 type checked tests | `cap/test/` |
 | ESLint flat config, TypeScript | `cap/eslint.config.ts` |
 
 ## Engineering practice

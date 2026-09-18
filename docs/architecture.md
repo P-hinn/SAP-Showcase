@@ -70,9 +70,9 @@ both stacks:
 |---|---|---|
 | Rules | `ZCL_PR_APPROVAL_POLICY`, `ZCL_PR_RISK_SCORING` | `srv/lib/approval-policy.ts`, `srv/lib/risk-scoring.ts` |
 | Plumbing | behaviour pool `ZBP_I_PR_REQUISITION` | `srv/procurement-service.ts` |
-| Tests on the rules | 51 ABAP Unit tests, no database | 128 Jest tests, no database |
-| Tests on the fixtures | - | 25 tests recomputing every derived value in `db/data` |
-| Tests on the plumbing | - | 59 integration tests over HTTP |
+| Tests on the rules | 51 ABAP Unit tests, no database | 164 Jest tests, no database |
+| Tests on the fixtures | - | 26 tests recomputing every derived value in `db/data` |
+| Tests on the plumbing | - | 71 integration tests over HTTP |
 
 The rule classes contain no `SELECT`, no `req`, no `MODIFY ENTITIES`. They take
 plain structures and return plain findings. Three things follow from that:
@@ -95,6 +95,8 @@ they have no ABAP counterpart (see the parity note in
 | Audit trail | `RequisitionEvents` | Append-only history per requisition, written by the service only. Includes adjustments nobody clicked. |
 | Risk propagation | `reassessApprovalPath()` | A risk change re-derives the approval path of open requisitions ([`adr/0008`](adr/0008-risk-changes-never-shorten-the-path.md)). |
 | S/4HANA integration | `srv/external`, `srv/lib/s4-mapping.ts` | Supplier master data in, purchase orders out, through released OData APIs ([`adr/0009`](adr/0009-s4-integration-via-released-apis.md)). |
+| Notifications | `lib/notifications.ts`, `MyNotifications` | Approval requests to the role of the pending level, outcomes to the requester; the bell in the ShellBar, and a `NotificationCreated` event as the seam for mail or Work Zone ([`adr/0010`](adr/0010-notifications-to-roles-in-app-first.md)). |
+| Maintained approval matrix | `lib/approval-matrix.ts`, `app/rules.html` | Export to Excel, upload, preview with findings, activate as a whole ([`adr/0011`](adr/0011-maintained-approval-matrix.md)). |
 | Cockpit | `app/cockpit.html` | Volume, risk exposure, budget utilisation and recent activity, read from the reporting service. |
 | Shell, tour, demo mode | `app/shared` | ShellBar with language, theme and user switch, onboarding tour, demo script, `resetData`. |
 

@@ -10,7 +10,7 @@ which.**
 ![SAP Fiori Elements](https://img.shields.io/badge/SAP%20Fiori%20Elements-OData%20V4-0a6ed1)
 ![ABAP Cloud](https://img.shields.io/badge/ABAP%20Cloud-RAP-0a6ed1)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178c6)
-![Tests](https://img.shields.io/badge/tests-212%20CAP%20%2B%2051%20ABAP-2e7d32)
+![Tests](https://img.shields.io/badge/tests-261%20CAP%20%2B%2051%20ABAP-2e7d32)
 ![i18n](https://img.shields.io/badge/UI-English%20%7C%20Deutsch-555)
 
 <img src="docs/images/list-report.png" alt="Manage Purchase Requisitions: list report with status tabs, colour coded supplier risk and approval levels" width="900">
@@ -38,6 +38,7 @@ a decision record that names the trade-offs.
 [Tour of the UI](#a-tour-of-the-ui) ·
 [S/4HANA integration](#the-s4hana-integration) ·
 [Demo mode](#demo-mode-for-presenting-it) ·
+[Security & operations](#security-and-operations) ·
 [What is SAP in here](#what-in-here-is-sap) ·
 [Repository](#whats-in-the-repository) ·
 [Design decision](#the-structural-decision-behind-both) ·
@@ -112,7 +113,7 @@ switches to English through the globe in the header.
 | Mocked S/4HANA APIs | <http://localhost:4004/odata/v4/api-business-partner/> |
 
 ```bash
-npm test           # 212 tests, type checked as they run
+npm test           # 261 tests, type checked as they run
 npm run typecheck
 npm run lint       # ESLint with type aware rules
 npm run build      # production build: cds build + tsc to gen/srv
@@ -241,6 +242,44 @@ The calculator ships **no industry averages**. It computes with the numbers the
 reader types in and prints the formula underneath - the only claim it makes is
 arithmetic.
 
+### Approval rules, maintained in Excel
+
+![Approval matrix page](docs/images/rules.png)
+
+The approval matrix is no longer a constant a developer has to change. The
+procurement admin downloads it as Excel, edits it, uploads it - and sees a
+preview with every problem and its row number before anything changes. A
+matrix that would make a riskier or a more expensive requisition cheaper to
+approve cannot be activated: the same two properties the unit tests assert for
+the built-in matrix are now checks a maintained one has to pass. Requisitions
+already in approval keep their path ([ADR 0011](docs/adr/0011-maintained-approval-matrix.md)).
+
+### Notifications
+
+![Notifications in the header bar](docs/images/notifications.png)
+
+Approval requests go to the **role** of the pending level - the identity
+provider knows who holds it, the application keeps no copy of that list.
+Outcomes (approved, rejected, ordered, approval path adjusted) go to the
+requester by name. Nobody is ever asked to approve their own requisition. The
+bell shows them in the app; every notification is also emitted as the event
+`NotificationCreated`, the seam for mail or SAP Build Work Zone
+([ADR 0010](docs/adr/0010-notifications-to-roles-in-app-first.md)).
+
+### On the phone
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/mobile-home.png" alt="Start page on a phone"></td>
+<td width="50%"><img src="docs/images/mobile-inbox.png" alt="Approving on a phone"></td>
+</tr>
+</table>
+
+Approving from the phone is what approvers actually do. The inbox keeps its
+approve and reject buttons at 375 px, the header bar folds language, theme,
+tour, demo script and notifications into its overflow menu, and every page was
+checked at phone width - not assumed to be responsive.
+
 ### German and English, light and dark
 
 ![German UI in the dark theme](docs/images/german-dark.png)
@@ -330,6 +369,26 @@ answers `403`.
 
 ---
 
+## Security and operations
+
+The questions an IT lead asks, answered in
+[`docs/security-and-operations.md`](docs/security-and-operations.md) - each
+with the file that makes it true:
+
+| | |
+|---|---|
+| **Authentication** | XSUAA in production; the demo user switch is inert without mocked auth |
+| **Authorization** | five role collections; static, instance-based (in the database query) and in-rule checks - none trusts the UI |
+| **Personal data** | user IDs only, annotated with `@PersonalData` for the SAP audit log |
+| **Integration** | BTP destination service in `mta.yaml`, credentials in the cockpit, never in the repository |
+| **Monitoring** | `GET /health`, structured CAP logs, a business audit trail per requisition |
+| **Supply chain** | `npm audit` in CI - the build fails on a known vulnerability |
+
+The same document lists what is **not** done yet: technical audit logging,
+retention rules, centralised logging, a penetration test.
+
+---
+
 ## What in here is SAP?
 
 ![Start page](docs/images/home.png)
@@ -364,7 +423,7 @@ The same map is on the start page of the running application.
 │   ├── app/        three Fiori Elements apps + start page, cockpit,
 │   │               decision maker page, shell, tour and demo script
 │   ├── _i18n/      labels and server messages, English and German
-│   └── test/       212 tests
+│   └── test/       261 tests
 ├── abap/       ABAP Cloud / RAP implementation of the same business object
 │   └── src/        tables, CDS views, behaviour definitions, classes, 51 ABAP Unit tests
 ├── docs/       architecture, domain model, business rules, 9 ADRs, demo script
@@ -383,7 +442,7 @@ The same map is on the start page of the running application.
 |---|---|---|
 | Rules | `ZCL_PR_APPROVAL_POLICY`, `ZCL_PR_RISK_SCORING` | `srv/lib/approval-policy.ts`, `srv/lib/risk-scoring.ts` |
 | Plumbing | behaviour pool `ZBP_I_PR_REQUISITION` | `srv/procurement-service.ts` |
-| Rule tests | 51 ABAP Unit, no database | 128 Jest, no database |
+| Rule tests | 51 ABAP Unit, no database | 164 Jest, no database |
 
 A rule class contains no `SELECT`, no `req` and no `MODIFY ENTITIES`. It takes
 plain structures and returns plain findings. Three things follow. The tests
@@ -406,6 +465,7 @@ opinion into evidence.
 | How I integrate with S/4HANA | [`cap/srv/lib/s4-mapping.ts`](cap/srv/lib/s4-mapping.ts), [ADR 0009](docs/adr/0009-s4-integration-via-released-apis.md) |
 | How I would sell this to a customer | <http://localhost:4004/solution.html> once it runs |
 | How I work with AI without lowering the bar | [`docs/ai-assisted-development.md`](docs/ai-assisted-development.md) |
+| Whether it is safe to run | [`docs/security-and-operations.md`](docs/security-and-operations.md) |
 | How I set up CAP with TypeScript | [ADR 0007](docs/adr/0007-typescript.md) |
 | Whether it actually runs | [`docs/demo-walkthrough.md`](docs/demo-walkthrough.md) |
 | A specific SAP skill | [`docs/skills-matrix.md`](docs/skills-matrix.md) |
@@ -484,7 +544,7 @@ has the whole setup and the honest limits.
 ## Scope, stated plainly
 
 - The **CAP implementation runs and is tested on every commit.** Type
-  generation, `tsc --noEmit`, type aware linting, a CDS compile, 212 tests with
+  generation, `tsc --noEmit`, type aware linting, a CDS compile, 261 tests with
   a coverage floor, and a production build that must actually emit the compiled
   service are all enforced by [CI](.github/workflows/ci.yml).
 - **TypeScript is pinned to 6.0.3, not the latest 7.0.2.** `ts-jest` supports
@@ -504,6 +564,12 @@ has the whole setup and the honest limits.
   ABAP package implements the same rules 1 to 6 with the same message numbers.
   The gap is listed in [`docs/business-rules.md`](docs/business-rules.md) and in
   [`abap/README.md`](abap/README.md) instead of being implied away.
+- **Notifications do not leave the application.** They are stored, shown in
+  the bell and emitted as an event; no mail is sent. Connecting a channel is a
+  subscriber, not a change to the approval logic ([ADR 0010](docs/adr/0010-notifications-to-roles-in-app-first.md)).
+- **The maintained approval matrix has no history.** The table records who
+  changed it last; which matrix was in force on a given date is not kept
+  ([ADR 0011](docs/adr/0011-maintained-approval-matrix.md)).
 - **Demo mode is a demo feature.** One-click user switching and `resetData` only
   work where authentication is mocked; with XSUAA or IAS both are inert. That is
   enforced in `cap/srv/demo-mode.ts`, not left to discipline.
