@@ -26,6 +26,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # "No known vulnerabilities" is a claim in the README and in
+      # docs/security-and-operations.md - so it is checked, not remembered.
+      - name: Dependencies without known vulnerabilities
+        run: npm audit --audit-level=moderate
+
       # The model types are generated, not versioned. Generating them here
       # proves they still compile against the current CDS model - a model
       # change that breaks them fails the build instead of breaking someone's

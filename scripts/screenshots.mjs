@@ -13,12 +13,18 @@
  * Optional arguments limit the run to single images:
  *   npm run screenshots -- cockpit inbox
  */
-import puppeteer from 'puppeteer-core';
+import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+// puppeteer-core is a dev dependency of cap/, while this script lives next to
+// it in scripts/ - so it is resolved from cap/ explicitly, not from here.
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const fromCap = createRequire(resolve(root, 'cap', 'package.json'));
+const { default: puppeteer } = await import(pathToFileURL(fromCap.resolve('puppeteer-core')).href);
 
 const BASE = process.env.DEMO_URL ?? 'http://localhost:4004';
-const OUT = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'docs', 'images');
+const OUT = resolve(root, 'docs', 'images');
 
 /** Chrome on this machine. Override with CHROME_PATH when it lives elsewhere. */
 const CHROME =
@@ -47,10 +53,21 @@ const browser = await puppeteer.launch({
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function shot(name, url, opts = {}) {
-  const { language = 'en', theme = 'sap_horizon', tour = false, user = 'mona', script = false, after, wait = 4000 } = opts;
+  const {
+    language = 'en',
+    theme = 'sap_horizon',
+    tour = false,
+    user = 'mona',
+    script = false,
+    after,
+    wait = 4000,
+    // A phone: 375 x 812 CSS pixels at device scale 2, like an iPhone.
+    phone = false
+  } = opts;
   if (only.length && !only.includes(name)) return;
   const context = await browser.createBrowserContext();
   const page = await context.newPage();
+  if (phone) await page.setViewport({ width: 375, height: 812, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   // The demo cookie is the login; it also beats any cached basic credentials.
   await page.setCookie({ name: 'acme-demo-user', value: user, url: BASE });
   await page.authenticate({ username: user, password: '' });
@@ -59,7 +76,7 @@ async function shot(name, url, opts = {}) {
       localStorage.setItem('acme.language', language);
       localStorage.setItem('acme.theme', theme);
       localStorage.setItem('acme.script.open', script ? 'true' : 'false');
-      for (const key of ['home', 'solution', 'cockpit', 'approvals', 'requisitions.list', 'requisitions.detail', 'suppliers.list', 'suppliers.detail']) {
+      for (const key of ['home', 'solution', 'cockpit', 'rules', 'approvals', 'requisitions.list', 'requisitions.detail', 'suppliers.list', 'suppliers.detail']) {
         if (tour) localStorage.removeItem('acme.tour.' + key);
         else localStorage.setItem('acme.tour.' + key, 'done');
       }
@@ -124,6 +141,26 @@ await shot('user-menu', '/purchase-requisitions/webapp/index.html', {
     await page.click('#acmeShellAvatar');
     await sleep(1500);
   }
+});
+
+await shot('rules', '/rules.html', { language: 'de' });
+await shot('notifications', '/', {
+  user: 'dana',
+  language: 'de',
+  after: async (page) => {
+    await page.click('#acmeShell .sapFButtonNotifications');
+    await sleep(1200);
+  }
+});
+await shot('mobile-home', '/', { user: 'dana', language: 'de', phone: true });
+await shot('mobile-inbox', '/approvals/webapp/index.html', {
+  user: 'dana',
+  language: 'de',
+  phone: true,
+  wait: 7000,
+  // On a phone the filter bar opens expanded and fills the screen - the
+  // picture is about the list and its buttons.
+  after: scrollTo('[id*="fe::table::"][id$="::LineItem"].sapUiMdcTable')
 });
 
 await browser.close();

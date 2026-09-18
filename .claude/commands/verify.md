@@ -11,6 +11,7 @@ npm run typecheck
 npm run lint
 npm run compile:check
 npm run check:i18n
+npm audit --audit-level=moderate
 npm test
 npm run build && rm -rf gen
 ```

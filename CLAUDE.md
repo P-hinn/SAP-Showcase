@@ -42,7 +42,7 @@ A change is finished when **all** of these pass in `cap/`:
 npm run typecheck     # tsc --noEmit, strict, incl. noUncheckedIndexedAccess
 npm run lint          # ESLint with type aware rules
 npm run compile:check # the CDS model compiles to SQL and EDMX
-npm test              # 212 tests, type checked as they run
+npm test              # every test, type checked as it runs
 npm run build         # production build must emit gen/srv
 ```
 
@@ -63,7 +63,8 @@ npm run build         # production build must emit gen/srv
 - **Money never goes through a float comparison.** Use the helpers in
   `srv/lib/money.ts` (integer minor units). See ADR 0004.
 - **Parity is documented, not assumed.** Features that exist only on the CAP
-  side (approver inbox, audit trail, risk propagation, S/4HANA integration) are
+  side (approver inbox, audit trail, risk propagation, S/4HANA integration,
+  notifications, the maintained approval matrix) are
   listed in `docs/business-rules.md` and `abap/README.md`. Add to that list
   rather than quietly diverging.
 
@@ -79,6 +80,10 @@ Two traps that already cost time and are documented in the skills:
   into the hidden pop-in area and they simply disappear.
 - A draft change fires `NEW`/`PATCH` on the `.drafts` entity, not
   `CREATE`/`UPDATE`. Register both (ADR 0003).
+- On a phone, columns without `@UI.Importance: #High` - inline action buttons
+  included - vanish from the pop-in. Check every list at 375 px.
+- `ShellBar.setShowNotifications` must run before `placeAt`, or the bell breaks
+  the overflow menu on a phone (see the comment in `app/shared/shell.js`).
 
 ## Verifying UI work
 

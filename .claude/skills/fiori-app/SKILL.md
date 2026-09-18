@@ -33,6 +33,18 @@ no width.
 active entity compiles, passes API tests and does nothing in the object page
 (ADR 0003).
 
+**3. Phones hide what is not important.** Below ~600 px the responsive table
+moves columns into the pop-in and drops every column without
+`@UI.Importance: #High` - inline action buttons included. An approver inbox
+without its approve button on a phone is useless, so the action fields carry
+`![@UI.Importance]: #High`. Check lists with the browser pane's mobile preset.
+
+**4. The ShellBar bell and the phone overflow.** `setShowNotifications(true)`
+captures `getParent()` at call time; called after `placeAt`, that parent is the
+UIArea and the overflow menu throws `_getOverflowButton is not a function` on
+a phone. Configure the bell before `placeAt`. Also: only overflow-aware
+controls (`OverflowToolbarButton`, not `Button`) may sit in `additionalContent`.
+
 ## Useful patterns already in the repository
 
 - Tabs with counts: `UI.SelectionPresentationVariant#<key>` plus `views.paths`
