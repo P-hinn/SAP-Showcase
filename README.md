@@ -44,7 +44,8 @@ a decision record that names the trade-offs.
 [Design decision](#the-structural-decision-behind-both) ·
 [Details](#six-details-worth-a-minute) ·
 [Built with AI](#built-with-ai-in-the-loop) ·
-[Scope](#scope-stated-plainly)
+[Scope](#scope-stated-plainly) ·
+[License](#license-and-contributions)
 
 ---
 
@@ -426,10 +427,11 @@ The same map is on the start page of the running application.
 │   └── test/       261 tests
 ├── abap/       ABAP Cloud / RAP implementation of the same business object
 │   └── src/        tables, CDS views, behaviour definitions, classes, 51 ABAP Unit tests
-├── docs/       architecture, domain model, business rules, 9 ADRs, demo script
+├── docs/       architecture, domain model, business rules, 11 ADRs, demo script
 ├── scripts/    translation check, screenshot generation, the file size hook
 ├── .claude/    conventions, skills and commands for working with Claude Code
-└── CLAUDE.md   the rules a change in this repository has to follow
+├── CLAUDE.md   the rules a change in this repository has to follow
+└── LICENSE     MIT
 ```
 
 ---
@@ -457,7 +459,7 @@ opinion into evidence.
 
 | If you want to see | Open |
 |---|---|
-| Whether I can reason about architecture | [`docs/adr/`](docs/adr/): nine decisions with their costs |
+| Whether I can reason about architecture | [`docs/adr/`](docs/adr/): eleven decisions with their costs |
 | Whether the business logic is any good | [`cap/srv/lib/approval-policy.ts`](cap/srv/lib/approval-policy.ts) |
 | Whether I can write RAP | [`abap/src/behavior/zi_pr_requisition.bdef.asbdef`](abap/src/behavior/zi_pr_requisition.bdef.asbdef) |
 | How far annotations carry a Fiori UI | [`cap/app/purchase-requisitions/annotations.cds`](cap/app/purchase-requisitions/annotations.cds) |
@@ -588,3 +590,15 @@ has the whole setup and the honest limits.
   down rather than hidden because the failure mode is silent.
 - **No workflow engine, no eventing.** Both are scope decisions with their
   reasoning in [`docs/architecture.md`](docs/architecture.md), not oversights.
+
+---
+
+## License and contributions
+
+MIT, see [`LICENSE`](LICENSE). The rule modules, the approval matrix and the
+annotation sets are meant to be lifted into a real project - that is what the
+license is for.
+
+This is a showcase, not a maintained product, so issues and pull requests are
+not merged. If something in here is wrong, or you want to talk it through
+against your own landscape, write to <contact@philippniestroj.com>.
